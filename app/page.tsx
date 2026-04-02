@@ -67,11 +67,13 @@ export default function Home() {
   const [logs, setLogs] = useState<ExtChatLog[]>([])
   const [savedLogs, setSavedLogs] = useState<ExtChatLog[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [customTeams, setCustomTeams] = useState<{id:string;icon:string;name:string;role:string;desc:string}[]>([])
 
   useEffect(() => {
     setSettings(loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS))
     setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
     setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
+    setCustomTeams(loadData('nk_custom_teams', []))
   }, [])
 
   // ✅ 설정에서 에이전트 이름 가져오기 (변경된 이름 반영)
@@ -237,29 +239,40 @@ export default function Home() {
 
           <div className="px-4 py-1 text-[10px] font-medium tracking-widest" style={{ color: 'var(--blush-b)' }}>AI 에이전트</div>
           <div className="flex-1 overflow-y-auto px-2 pb-2">
+            {/* 기본 6개 팀 */}
             {AGENTS.map(agent => {
               const isActive = activeAgentId === agent.id
               const color = AGENT_ACCENT[agent.id] || 'var(--blush)'
-              // ✅ 설정에서 변경된 이름 사용
               const displayName = settings.agentNames[agent.id] || agent.name
               return (
                 <div key={agent.id} onClick={() => { setPage('office'); setActiveAgentId(agent.id) }}
                   className="px-3 py-2 flex items-center gap-2.5 cursor-pointer rounded-xl mb-0.5 text-[12px] transition-all"
                   style={{ background: isActive ? 'var(--sidebar-b)' : 'transparent', borderLeft: `2px solid ${isActive ? color : 'transparent'}`, color: isActive ? color : '#ffffff' }}>
-                  {/* ✅ 5번 - 실제 업무중 표시 */}
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'animate-pulse' : ''}`}
                     style={{ background: isActive ? color : 'var(--blush-b)' }} />
                   <span style={{ fontSize: 13 }}>{AGENT_ICONS[agent.id]}</span>
                   <span>{displayName}</span>
                   <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full"
-                    style={{
-                      background: isActive ? color + '33' : 'transparent',
-                      color: isActive ? color : 'var(--blush-b)',
-                      fontWeight: isActive ? 700 : 400,
-                      border: isActive ? `1px solid ${color}` : 'none',
-                    }}>
+                    style={{ background: isActive ? color + '33' : 'transparent', color: isActive ? color : 'var(--blush-b)', fontWeight: isActive ? 700 : 400, border: isActive ? `1px solid ${color}` : 'none' }}>
                     {isActive ? '⚡업무중' : '대기'}
                   </span>
+                </div>
+              )
+            })}
+            {/* ✅ 커스텀 팀도 표시 */}
+            {customTeams.map(team => {
+              const isActive = activeAgentId === (team.id as AgentId)
+              const color = 'var(--copper)'
+              const displayName = settings.agentNames[team.id] || team.name
+              return (
+                <div key={team.id}
+                  className="px-3 py-2 flex items-center gap-2.5 cursor-pointer rounded-xl mb-0.5 text-[12px] transition-all"
+                  style={{ background: isActive ? 'var(--sidebar-b)' : 'transparent', borderLeft: `2px solid ${isActive ? color : 'transparent'}`, color: isActive ? color : '#ffffff' }}>
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: isActive ? color : 'var(--blush-b)' }} />
+                  <span style={{ fontSize: 13 }}>{team.icon}</span>
+                  <span>{displayName}</span>
+                  <span className="ml-auto text-[9px]" style={{ color: 'var(--blush-b)' }}>대기</span>
                 </div>
               )
             })}
