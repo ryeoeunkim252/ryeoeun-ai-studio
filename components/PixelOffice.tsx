@@ -292,7 +292,7 @@ export default function PixelOffice({activeAgentId}:Props) {
           r(x+s-3,y,3,s,CLR.mtD)
           r(x,y+s-3,s,3,CLR.mtD)
           // 의자들 (작은 표시)
-          r(x+4,y+4,s-8,s-8,CLR.mch||(CLR.chair[2]))
+          r(x+4,y+4,s-8,s-8,CLR.chair[2])
           r(x+6,y+6,s-12,s-12,CLR.chair[2]+'88')
           break
         }
