@@ -105,12 +105,13 @@ export default function Home() {
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
 
       {/* 🔵 상단 배너 */}
-      <div className="flex items-center justify-center gap-2 py-2 flex-shrink-0 text-[12px] font-medium"
-        style={{ background: 'linear-gradient(90deg, #201018, #3d1020, #201018)', color: '#f5ede8', borderBottom: '1px solid var(--sidebar-b)' }}>
-        <span style={{ color: 'var(--blush)' }}>✦</span>
-        {STUDIO_NAME}
-        <span style={{ color: 'var(--copper)' }}>✦</span>
-      </div>
+      <div className="flex-shrink-0 relative flex items-center justify-center"
+  style={{ background: '#160b04', minHeight: 28 }}>
+  <div style={{ position:'absolute', left:0, top:0, bottom:0, width:'40%', background:'linear-gradient(90deg,#2a1208,transparent)' }} />
+  <div style={{ position:'absolute', right:0, top:0, bottom:0, width:'40%', background:'linear-gradient(270deg,#2a1208,transparent)' }} />
+  <div style={{ position:'absolute', bottom:0, left:'10%', right:'10%', height:1, background:'linear-gradient(90deg,transparent,#c8a06a,transparent)' }} />
+  <span style={{ position:'relative', fontSize:12, fontWeight:400, color:'#d4b896', letterSpacing:'3px' }}>{STUDIO_NAME}</span>
+</div>
 
       <div className="flex flex-1 overflow-hidden" style={{ display: 'grid', gridTemplateColumns: '180px 1fr 270px' }}>
 
