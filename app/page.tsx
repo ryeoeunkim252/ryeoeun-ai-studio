@@ -33,7 +33,7 @@ export default function Home() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [messages, setMessages] = useState<Array<{
     id: string; role: 'user' | 'agent'
-    text?: string; agentId?: string; agentName?: string; content?: string; time: string
+    text?: string; agentId?: string; agentName?: string; modelName?: string; content?: string; time: string
   }>>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -91,7 +91,7 @@ export default function Home() {
             if (ev.type === 'agent') {
               finalAgentId = ev.agentId; finalAgentName = ev.agentName
               setActiveAgentId(ev.agentId as AgentId)
-              setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, agentId: ev.agentId, agentName: ev.agentName } : m))
+              setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, agentId: ev.agentId, agentName: ev.agentName, modelName: ev.modelName } : m))
             } else if (ev.type === 'text') {
               fullContent += ev.text
               setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, content: (m.content||'') + ev.text } : m))
@@ -294,6 +294,12 @@ export default function Home() {
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <span style={{ fontSize: 13 }}>{msg.agentId ? AGENT_ICONS[msg.agentId] : '⏳'}</span>
                       <span style={{ color: accentOf(msg.agentId), fontWeight: 500 }}>{msg.agentName}</span>
+                      {msg.modelName && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full"
+                          style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
+                          {msg.modelName.replace('claude-','').replace('-4-5','').replace('-20251001','').replace('claude-','').toUpperCase()}
+                        </span>
+                      )}
                       <span className="ml-auto" style={{ color: 'var(--muted)' }}>{msg.time}</span>
                     </div>
                     <div className="text-[13px] px-3.5 py-2.5 rounded-2xl rounded-tl-sm leading-relaxed"
