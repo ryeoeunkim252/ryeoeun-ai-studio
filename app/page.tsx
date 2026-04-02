@@ -256,7 +256,7 @@ export default function Home() {
             {messages.length === 0 && (
               <div className="m-auto text-center px-3">
                 <div style={{ fontSize: 40, marginBottom: 10 }}>🐰</div>
-                <p className="text-[13px] font-medium mb-4" style={{ color: 'var(--text)' }}>대표님, 업무를 주세요</p>
+                <p className="text-[13px] font-medium mb-4" style={{ color: 'var(--text)' }}>대표님, 무엇을 도와드릴까요?🌸</p>
                 {[
                   { e: '✍️', t: '블로그 제목 5개 추천해줘' },
                   { e: '🌐', t: '@web 랜딩 페이지 기획해줘' },
