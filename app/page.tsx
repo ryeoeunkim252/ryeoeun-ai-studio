@@ -20,11 +20,11 @@ const AGENT_ACCENT: Record<string, string> = {
 }
 
 const NAV = [
-  { id: 'dashboard' as Page, icon: '🏠', label: '대시보드' },
-  { id: 'office' as Page, icon: '🏢', label: 'AI 오피스' },
-  { id: 'tasks' as Page, icon: '📋', label: '작업 관리' },
-  { id: 'chat' as Page, icon: '💬', label: '팀 채팅' },
-  { id: 'settings' as Page, icon: '⚙️', label: '설정' },
+  { id: 'dashboard' as Page, icon: '📊', label: '대시보드' },
+  { id: 'office'    as Page, icon: '🏢', label: 'AI 오피스' },
+  { id: 'tasks'     as Page, icon: '📋', label: '작업 관리' },
+  { id: 'chat'      as Page, icon: '💬', label: '팀 채팅' },
+  { id: 'settings'  as Page, icon: '⚙️', label: '설정' },
 ]
 
 export default function Home() {
@@ -53,15 +53,25 @@ export default function Home() {
     const text = input.trim()
     if (!text || loading) return
     setInput(''); setLoading(true)
+
+    const teamModels = loadData<Record<string, string>>('nk_team_models', {
+      router: 'claude-haiku-4-5-20251001', web: 'claude-opus-4-5',
+      content: 'claude-sonnet-4-5', edu: 'claude-sonnet-4-5',
+      research: 'claude-sonnet-4-5', ops: 'claude-sonnet-4-5',
+    })
+    const teamEnabled = loadData<Record<string, boolean>>('nk_team_enabled', {
+      router: true, web: true, content: true, edu: true, research: true, ops: true,
+    })
+
     const agentMsgId = crypto.randomUUID()
     setMessages(prev => [...prev,
       { id: crypto.randomUUID(), role: 'user', text, time: now() },
-      { id: agentMsgId, role: 'agent', content: '', agentName: '분석 중...', time: now() }
+      { id: agentMsgId, role: 'agent', content: '', agentName: '라우팅 중..', time: now() }
     ])
     try {
       const res = await fetch('/api/pipeline', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, teamModels, teamEnabled }),
       })
       if (!res.ok || !res.body) throw new Error()
       const reader = res.body.getReader()
@@ -94,7 +104,7 @@ export default function Home() {
         }
       }
     } catch {
-      setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, content: '오류가 생겼어요 😢', agentName: '시스템' } : m))
+      setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, content: '오류가 발생했어요. 다시 시도해주세요.', agentName: '시스템' } : m))
       setActiveAgentId(null)
     } finally { setLoading(false) }
   }
@@ -106,15 +116,15 @@ export default function Home() {
 
       {/* 🔵 상단 배너 */}
       <div className="flex items-center justify-center gap-2 py-2 flex-shrink-0 text-[12px] font-medium"
-  style={{ background: 'linear-gradient(90deg,#201018,#3d1020,#201018)', color:'#f5ede8', borderBottom:'1px solid var(--sidebar-b)' }}>
-  <span style={{ color: 'var(--blush)' }}>✦</span>
-  {STUDIO_NAME}
-  <span style={{ color: 'var(--copper)' }}>✦</span>
-</div>
+        style={{ background: 'linear-gradient(90deg,#201018,#3d1020,#201018)', color:'#f5ede8', borderBottom:'1px solid var(--sidebar-b)' }}>
+        <span style={{ color: 'var(--blush)' }}>✦</span>
+        {STUDIO_NAME}
+        <span style={{ color: 'var(--copper)' }}>✦</span>
+      </div>
 
       <div className="flex flex-1 overflow-hidden" style={{ display: 'grid', gridTemplateColumns: '180px 1fr 270px' }}>
 
-        {/* ── 사이드바 ── */}
+        {/* 🔵 사이드바 */}
         <aside className="flex flex-col overflow-hidden" style={{ background: 'var(--sidebar)', borderRight: '1px solid var(--sidebar-b)' }}>
           <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0"
             style={{ borderBottom: '1px solid var(--sidebar-b)' }}>
@@ -186,10 +196,9 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* ── 메인 ── */}
+        {/* 🔵 메인 */}
         <div className="flex flex-col min-w-0 overflow-hidden" style={{ background: 'var(--bg2)' }}>
 
-          {/* 🟡 탑바 */}
           <div className="px-5 py-3 flex items-center gap-3 flex-shrink-0"
             style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 18 }}>{NAV.find(n => n.id === page)?.icon}</span>
@@ -199,7 +208,7 @@ export default function Home() {
             {activeAgentId && page === 'office' && (
               <span className="text-[10px] px-2 py-0.5 rounded-full animate-pulse ml-1"
                 style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
-                ✦ 작업 중...
+                ⚡ 작업 중..
               </span>
             )}
           </div>
@@ -220,7 +229,7 @@ export default function Home() {
               {logs.length === 0 ? (
                 <div className="m-auto text-center py-20">
                   <div style={{ fontSize: 48, marginBottom: 12 }}>🐰</div>
-                  <p style={{ color: 'var(--muted)', fontSize: 14 }}>아직 대화 기록이 없어요!</p>
+                  <p style={{ color: 'var(--muted)', fontSize: 14 }}>아직 대화 기록이 없어요</p>
                 </div>
               ) : logs.slice().reverse().map(log => (
                 <div key={log.id} className="p-4 rounded-2xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
@@ -229,7 +238,7 @@ export default function Home() {
                     <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>{log.agentName}</span>
                     <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString('ko-KR')}</span>
                   </div>
-                  <p className="text-[12px] mb-2 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>🙋 {log.userText}</p>
+                  <p className="text-[12px] mb-2 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>나 {log.userText}</p>
                   <p className="text-[12px] px-3 py-2 rounded-xl" style={{ background: 'var(--bg2)', color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>
                     {log.result.slice(0, 300)}{log.result.length > 300 ? '...' : ''}
                   </p>
@@ -243,12 +252,12 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── 채팅 ── */}
+        {/* ✅ 오른쪽 채팅 패널 — overflow-hidden 고정 */}
         <div className="flex flex-col overflow-hidden"
-          style={{ background: 'var(--blush-l)', borderLeft: '1px solid var(--blush-b)' }}>
+          style={{ background: 'var(--blush-l)', borderLeft: '1px solid var(--blush-b)', height: '100%' }}>
           <div className="px-4 py-3.5 flex-shrink-0"
             style={{ background: 'var(--sidebar)', borderBottom: '1px solid var(--sidebar-b)' }}>
-            <div className="text-[14px] font-semibold" style={{ color: '#ffffff' }}>💌 팀 커뮤니케이션</div>
+            <div className="text-[14px] font-semibold" style={{ color: '#ffffff' }}>🎯 팀 커뮤니케이션</div>
             <div className="text-[11px] mt-0.5" style={{ color: 'var(--blush-b)' }}>업무를 지시하고 결과를 확인해요</div>
           </div>
 
@@ -256,7 +265,7 @@ export default function Home() {
             {messages.length === 0 && (
               <div className="m-auto text-center px-3">
                 <div style={{ fontSize: 40, marginBottom: 10 }}>🐰</div>
-                <p className="text-[13px] font-medium mb-4" style={{ color: 'var(--text)' }}>대표님, 무엇을 도와드릴까요?🌸</p>
+                <p className="text-[13px] font-medium mb-4" style={{ color: 'var(--text)' }}>대표님, 무엇을 도와드릴까요? 🔥</p>
                 {[
                   { e: '✍️', t: '블로그 제목 5개 추천해줘' },
                   { e: '🌐', t: '@web 랜딩 페이지 기획해줘' },
@@ -274,7 +283,7 @@ export default function Home() {
               <div key={msg.id}>
                 {msg.role === 'user' ? (
                   <div className="flex flex-col items-end gap-1">
-                    <div className="text-[10px]" style={{ color: 'var(--muted)' }}>나 🙋 {msg.time}</div>
+                    <div className="text-[10px]" style={{ color: 'var(--muted)' }}>나 🔥 {msg.time}</div>
                     <div className="text-[13px] px-3.5 py-2.5 rounded-2xl rounded-tr-sm max-w-[90%] leading-relaxed"
                       style={{ background: 'var(--blush)', color: '#fff' }}>
                       {msg.text}
@@ -283,7 +292,7 @@ export default function Home() {
                 ) : (
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-1.5 text-[11px]">
-                      <span style={{ fontSize: 13 }}>{msg.agentId ? AGENT_ICONS[msg.agentId] : '🤖'}</span>
+                      <span style={{ fontSize: 13 }}>{msg.agentId ? AGENT_ICONS[msg.agentId] : '⏳'}</span>
                       <span style={{ color: accentOf(msg.agentId), fontWeight: 500 }}>{msg.agentName}</span>
                       <span className="ml-auto" style={{ color: 'var(--muted)' }}>{msg.time}</span>
                     </div>
@@ -338,10 +347,11 @@ export default function Home() {
             <button onClick={sendMessage} disabled={loading || !input.trim()}
               className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full"
               style={{ background: loading || !input.trim() ? 'var(--bg2)' : 'var(--blush)', color: loading || !input.trim() ? 'var(--muted)' : '#fff' }}>
-              ✈️
+              ↑
             </button>
           </div>
         </div>
+
       </div>
     </div>
   )
