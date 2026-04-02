@@ -5,11 +5,16 @@ import { AGENTS, ROUTER_SYSTEM_PROMPT, type AgentId } from '@/lib/agents'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(req: Request) {
-  const { message } = await req.json()
+  const { message, teamModels = {}, teamEnabled = {} } = await req.json()
   if (!message?.trim()) return new Response('입력이 없습니다', { status: 400 })
 
   const { steps, isPipeline } = parsePipeline(message)
   const encoder = new TextEncoder()
+
+  // ✅ 활성화된 팀 목록 (꺼진 팀은 라우팅 제외)
+  const enabledAgentIds = AGENTS
+    .map(a => a.id)
+    .filter(id => teamEnabled[id] !== false)
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -23,39 +28,47 @@ export async function POST(req: Request) {
           const step = steps[i]
           const isLast = i === steps.length - 1
 
-          // 파이프라인 진행 상황 전송
           if (isPipeline) {
             send({ type: 'pipeline_step', step: i + 1, total: steps.length, task: step.task })
           }
 
-          // 에이전트 자동 선택 (명시 안 된 경우)
           let targetAgentId: AgentId = step.agentId ?? 'router'
           let routerReason = ''
 
           if (!step.agentId) {
+            // ✅ 라우터 프롬프트에 활성화된 팀만 포함
+            const enabledTeamList = enabledAgentIds.join(', ')
+            const dynamicRouterPrompt = ROUTER_SYSTEM_PROMPT +
+              `\n\n현재 활성화된 팀만 선택하세요: ${enabledTeamList}`
+
             try {
               const routerRes = await anthropic.messages.create({
-                model: 'claude-haiku-4-5-20251001',
+                model: teamModels['router'] ?? 'claude-haiku-4-5-20251001',
                 max_tokens: 150,
-                system: ROUTER_SYSTEM_PROMPT,
+                system: dynamicRouterPrompt,
                 messages: [{ role: 'user', content: step.task }],
               })
               const raw = routerRes.content[0].type === 'text' ? routerRes.content[0].text : ''
               const parsed = JSON.parse(raw)
               targetAgentId = parsed.team as AgentId
               routerReason = parsed.reason ?? ''
-            } catch { /* 라우팅 실패 시 router 사용 */ }
+            } catch { /* 라우터 실패 시 router 사용 */ }
+          }
+
+          // ✅ 꺼진 팀이면 router로 fallback
+          if (teamEnabled[targetAgentId] === false) {
+            targetAgentId = enabledAgentIds[0] as AgentId ?? 'router'
           }
 
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[0]
-          const model = step.model ?? agent.model
+
+          // ✅ 설정된 모델 우선 사용, 없으면 step 지정 모델, 없으면 agents.ts 기본값
+          const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
           send({ type: 'agent', agentId: agent.id, agentName: agent.name, reason: routerReason, step: i + 1 })
 
-          // 이전 결과를 컨텍스트에 주입
           const taskWithContext = injectContext(step, prevResult)
 
-          // 스트리밍 응답
           const stream = await anthropic.messages.stream({
             model,
             max_tokens: 1024,
@@ -73,22 +86,20 @@ export async function POST(req: Request) {
 
           prevResult = fullText
 
-          // !verify: 품질 검증 단계
           if (step.verify && isLast) {
             send({ type: 'verify_start' })
             const verifyRes = await anthropic.messages.create({
-              model: 'claude-haiku-4-5-20251001',
+              model: teamModels['router'] ?? 'claude-haiku-4-5-20251001',
               max_tokens: 300,
-              system: '당신은 품질 검증 에이전트입니다. 결과물의 완성도, 정확성, 개선점을 간략하게 평가하세요. 3가지 bullet point로 정리하세요.',
+              system: '당신은 검증 에이전트입니다. 결과물의 품질을 평가하고 개선점을 알려주세요. 3가지 bullet point로 정리하세요.',
               messages: [
-                { role: 'user', content: `다음 결과를 검증해주세요:\n\n${fullText}` }
+                { role: 'user', content: `다음 결과물을 검증해주세요:\n\n${fullText}` }
               ],
             })
             const verifyText = verifyRes.content[0].type === 'text' ? verifyRes.content[0].text : ''
             send({ type: 'verify_result', text: verifyText })
           }
 
-          // 파이프라인 단계 완료
           if (isPipeline && !isLast) {
             send({ type: 'step_done', step: i + 1 })
           }

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { AGENTS, type AgentId } from '@/lib/agents'
+import { loadData } from '@/lib/store'
 
 interface MessageBlock {
   step?: number
@@ -30,10 +31,10 @@ const AGENT_ICONS: Record<string, string> = {
 }
 
 const EXAMPLES = [
-  '🌸 블로그 제목 5개 추천해줘',
-  '🌐 랜딩 페이지 기획 >> @web 컴포넌트 설계',
-  '🔬 @research AI 트렌드 분석 !verify',
-  '📚 신규 서비스 온보딩 자료 만들어줘',
+  '🔥 블로그 제목 5개 추천해줘',
+  '🌐 랜딩 페이지 기획해줘 >> @web 컴포넌트 작성',
+  '🔬 @research AI 트렌드 분석해줘 !verify',
+  '📚 초등학생 수학 학습 자료 만들어줘',
 ]
 
 export default function TeamChat({ onActiveAgent }: TeamChatProps) {
@@ -59,6 +60,19 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
     setInput('')
     setLoading(true)
 
+    // ✅ 설정에서 팀별 모델과 활성화 여부 읽기
+    const teamModels = loadData<Record<string, string>>('nk_team_models', {
+      router: 'claude-haiku-4-5-20251001',
+      web: 'claude-opus-4-5',
+      content: 'claude-sonnet-4-5',
+      edu: 'claude-sonnet-4-5',
+      research: 'claude-sonnet-4-5',
+      ops: 'claude-sonnet-4-5',
+    })
+    const teamEnabled = loadData<Record<string, boolean>>('nk_team_enabled', {
+      router: true, web: true, content: true, edu: true, research: true, ops: true,
+    })
+
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', text, time: now() }
     const agentMsgId = crypto.randomUUID()
     const agentMsg: Message = {
@@ -77,7 +91,8 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
       const res = await fetch('/api/pipeline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        // ✅ teamModels, teamEnabled 함께 전달
+        body: JSON.stringify({ message: text, teamModels, teamEnabled }),
       })
       if (!res.ok || !res.body) throw new Error('오류')
       const reader = res.body.getReader()
@@ -115,7 +130,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
         }
       }
     } catch {
-      updateBlocks(() => [{ content: '앗! 오류가 생겼어요 😢 다시 시도해봐요!', agentName: '시스템' }])
+      updateBlocks(() => [{ content: '⚠️ 오류가 발생했어요. 잠시 후 다시 시도해주세요.', agentName: '시스템' }])
       onActiveAgent(null)
     } finally {
       setLoading(false)
@@ -132,7 +147,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
     }}>
       {/* 헤더 */}
       <div className="px-4 py-3 flex-shrink-0" style={{ background: '#2a1845', borderBottom: '2px solid #3d2458' }}>
-        <div className="text-[12px]" style={{ color: '#f0c4ff' }}>💌 팀 커뮤니케이션</div>
+        <div className="text-[12px]" style={{ color: '#f0c4ff' }}>🎯 팀 커뮤니케이션</div>
         <div className="text-[8px] mt-0.5" style={{ color: '#7a5a9a' }}>업무를 지시하고 결과를 확인해요</div>
       </div>
 
@@ -141,10 +156,10 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
         {messages.length === 0 && (
           <div className="m-auto text-center">
             <div className="text-3xl mb-3">🐰</div>
-            <p className="text-[11px] mb-3" style={{ color: '#c9a0dc' }}>무엇을 도와드릴까요?</p>
+            <p className="text-[11px] mb-3" style={{ color: '#c9a0dc' }}>대표님, 무엇을 도와드릴까요?</p>
             <div className="flex flex-col gap-2">
               {EXAMPLES.map((ex, i) => (
-                <button key={i} onClick={() => setInput(ex.replace(/^[🌸🌐🔬📚]\s/, ''))}
+                <button key={i} onClick={() => setInput(ex.replace(/^[🔥🌐🔬📚]\s/, ''))}
                   className="text-[9px] px-3 py-2 rounded-xl text-left transition-all"
                   style={{ background: '#2a1845', color: '#c9a0dc', border: '1.5px solid #3d2458' }}>
                   {ex}
@@ -160,7 +175,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
               <div className="flex flex-col items-end gap-1">
                 <div className="text-[7px] flex items-center gap-1" style={{ color: '#7a5a9a' }}>
                   <span>{msg.time}</span>
-                  <span>나 🙋</span>
+                  <span>나</span>
                 </div>
                 <div className="text-[10px] px-3 py-2 rounded-2xl rounded-tr-sm max-w-[90%] leading-relaxed"
                   style={{ background: 'linear-gradient(135deg, #6d3d88, #4a1d6a)', color: '#f0d4ff' }}>
@@ -171,18 +186,18 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
               <div className="flex flex-col gap-2">
                 {msg.isPipeline && msg.blocks && msg.blocks.length > 1 && (
                   <div className="text-[8px] px-2" style={{ color: '#c9a0dc' }}>
-                    ✨ 파이프라인 {msg.blocks.filter(b => !b.isVerify).length}단계 실행 중
+                    🔗 파이프라인 {msg.blocks.filter(b => !b.isVerify).length}단계 실행 중
                   </div>
                 )}
                 {msg.blocks?.map((block, bi) => (
                   <div key={bi} className="flex flex-col gap-1">
                     <div className="flex items-center gap-1.5 text-[8px] px-1">
                       {block.isVerify ? (
-                        <span style={{ color: '#a0e0a0' }}>✅ 품질 검증</span>
+                        <span style={{ color: '#a0e0a0' }}>✅ 검증 결과</span>
                       ) : (
                         <>
-                          <span className="text-sm">{block.agentId ? AGENT_ICONS[block.agentId] : '🤖'}</span>
-                          <span style={{ color: agentColor(block.agentId) }}>{block.agentName ?? '분석 중...'}</span>
+                          <span className="text-sm">{block.agentId ? AGENT_ICONS[block.agentId] : '⏳'}</span>
+                          <span style={{ color: agentColor(block.agentId) }}>{block.agentName ?? '라우팅 중...'}</span>
                           {block.step && msg.isPipeline && (
                             <span className="text-[6px] px-1.5 py-0.5 rounded-full" style={{ background: '#3d2458', color: '#c9a0dc' }}>
                               {block.step}단계
@@ -216,7 +231,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
         ))}
       </div>
 
-      {/* 빠른 키워드 */}
+      {/* 빠른 태그 */}
       <div className="px-3 py-2 flex gap-1.5 flex-wrap flex-shrink-0" style={{ borderTop: '2px solid #3d2458' }}>
         {['@web','@research','@content','@edu','@ops'].map(k => (
           <button key={k} onClick={() => setInput(v => v + k + ' ')}
@@ -233,7 +248,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
         <button onClick={() => setInput(v => v + ' >> ')}
           className="text-[7px] px-2 py-1 rounded-full"
           style={{ background: '#2a1845', color: '#ff9eb5', border: '1px solid #4d2d68' }}>
-          &gt;&gt; 체인
+          &gt;&gt; 파이프
         </button>
       </div>
 
@@ -243,7 +258,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
           disabled={loading}
-          placeholder={loading ? '🌀 에이전트 작업 중...' : '💬 업무를 지시해보세요!'}
+          placeholder={loading ? '⏳ AI 팀 작업 중...' : '업무를 지시해보세요!'}
           className="flex-1 px-4 py-2.5 text-[10px] outline-none transition-all"
           style={{
             background: '#2a1845',
@@ -261,7 +276,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
             color: '#fff',
             opacity: loading || !input.trim() ? 0.5 : 1,
           }}>
-          ✈️
+          ↑
         </button>
       </div>
     </div>
