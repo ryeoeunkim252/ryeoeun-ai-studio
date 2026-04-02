@@ -28,29 +28,31 @@ const NAV = [
   { id: 'settings'  as Page, icon: '⚙️', label: '설정' },
 ]
 
-// ✅ 마크다운 기호 제거 함수
+// ✅ 마크다운 기호 제거
 const cleanText = (text: string) => {
   return text
-    .replace(/```[\w]*\n?([\s\S]*?)```/g, '$1')  // 코드블록 내용만 남기기
-    .replace(/#{1,6}\s+/g, '')                    // ## 제목 기호 제거
-    .replace(/\*\*(.*?)\*\*/g, '$1')              // **볼드** 제거
-    .replace(/\*(.*?)\*/g, '$1')                  // *이탤릭* 제거
-    .replace(/`([^`]+)`/g, '$1')                  // `인라인코드` 기호 제거
-    .replace(/---+/g, '')                          // --- 구분선 제거
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '$1')
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/---+/g, '')
     .trim()
 }
 
-// ✅ 모델명 짧게 표시
+// ✅ 모델명 짧게
 const shortModel = (model?: string) => {
   if (!model) return ''
-  return model
-    .replace('claude-opus-4-5', 'OPUS')
-    .replace('claude-sonnet-4-5', 'SONNET')
-    .replace('claude-haiku-4-5-20251001', 'HAIKU')
-    .replace('gemini-pro', 'GEMINI')
-    .replace('grok', 'GROK')
-    .toUpperCase()
+  if (model.includes('opus')) return 'OPUS'
+  if (model.includes('sonnet')) return 'SONNET'
+  if (model.includes('haiku')) return 'HAIKU'
+  if (model.includes('gemini')) return 'GEMINI'
+  if (model.includes('grok')) return 'GROK'
+  return model.toUpperCase()
 }
+
+// ChatLog 확장 타입 (modelName 포함)
+type ExtChatLog = ChatLog & { modelName?: string }
 
 export default function Home() {
   const [page, setPage] = useState<Page>('office')
@@ -62,43 +64,62 @@ export default function Home() {
   }>>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [logs, setLogs] = useState<ChatLog[]>([])
-  const [savedLogs, setSavedLogs] = useState<ChatLog[]>([])
+  const [logs, setLogs] = useState<ExtChatLog[]>([])
+  const [savedLogs, setSavedLogs] = useState<ExtChatLog[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     setSettings(loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS))
-    setLogs(loadData<ChatLog[]>('nk_chatlogs', []))
-    setSavedLogs(loadData<ChatLog[]>('nk_savedlogs', []))
+    setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
+    setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
   }, [])
+
+  // ✅ 설정에서 에이전트 이름 가져오기 (변경된 이름 반영)
+  const getAgentName = (agentId?: string, fallback?: string) => {
+    if (!agentId) return fallback || ''
+    return settings.agentNames[agentId] || fallback || agentId
+  }
 
   const now = () => {
     const d = new Date()
     return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
   }
 
-  // ✅ 대화 전체 삭제
-  const clearMessages = () => {
-    if (!confirm('대화 내용을 모두 삭제할까요?')) return
-    setMessages([])
-    setLogs([])
-    saveData('nk_chatlogs', [])
+  // ✅ 선택 삭제
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   }
 
-  // ✅ 자료 저장
-  const saveLog = (log: ChatLog) => {
-    const already = savedLogs.find(s => s.id === log.id)
-    if (already) return alert('이미 저장된 자료예요!')
+  const deleteSelected = () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`선택한 ${selectedIds.size}개 대화를 삭제할까요?`)) return
+    const updated = logs.filter(l => !selectedIds.has(l.id))
+    setLogs(updated)
+    saveData('nk_chatlogs', updated)
+    setSelectedIds(new Set())
+  }
+
+  const clearAllMessages = () => {
+    if (!confirm('대화 내용을 모두 삭제할까요?')) return
+    setMessages([]); setLogs([]); saveData('nk_chatlogs', [])
+    setSelectedIds(new Set())
+  }
+
+  // ✅ 저장
+  const saveLog = (log: ExtChatLog) => {
+    if (savedLogs.find(s => s.id === log.id)) return alert('이미 저장된 자료예요!')
     const updated = [...savedLogs, log]
-    setSavedLogs(updated)
-    saveData('nk_savedlogs', updated)
+    setSavedLogs(updated); saveData('nk_savedlogs', updated)
     alert('⭐ 저장 자료에 보관했어요!')
   }
 
-  // ✅ 저장 자료 삭제
   const deleteSaved = (id: string) => {
     const updated = savedLogs.filter(s => s.id !== id)
-    setSavedLogs(updated)
-    saveData('nk_savedlogs', updated)
+    setSavedLogs(updated); saveData('nk_savedlogs', updated)
   }
 
   const sendMessage = async () => {
@@ -120,6 +141,7 @@ export default function Home() {
       { id: crypto.randomUUID(), role: 'user', text, time: now() },
       { id: agentMsgId, role: 'agent', content: '', agentName: '라우팅 중..', time: now() }
     ])
+
     try {
       const res = await fetch('/api/pipeline', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -129,6 +151,7 @@ export default function Home() {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = '', finalAgentId = 'router', finalAgentName = '라우터', fullContent = '', finalModel = ''
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -148,12 +171,13 @@ export default function Home() {
             } else if (ev.type === 'text') {
               fullContent += ev.text
               setMessages(prev => prev.map(m => m.id === agentMsgId
-                ? { ...m, content: (m.content||'') + ev.text } : m))
+                ? { ...m, content: (m.content || '') + ev.text } : m))
             } else if (ev.type === 'done') {
               setActiveAgentId(null)
-              const newLog: ChatLog = {
+              const newLog: ExtChatLog = {
                 id: crypto.randomUUID(), userText: text,
                 agentId: finalAgentId, agentName: finalAgentName,
+                modelName: finalModel,
                 result: fullContent, createdAt: new Date().toISOString()
               }
               const updated = [...logs, newLog]; setLogs(updated); saveData('nk_chatlogs', updated)
@@ -185,8 +209,7 @@ export default function Home() {
 
         {/* 사이드바 */}
         <aside className="flex flex-col overflow-hidden" style={{ background: 'var(--sidebar)', borderRight: '1px solid var(--sidebar-b)' }}>
-          <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0"
-            style={{ borderBottom: '1px solid var(--sidebar-b)' }}>
+          <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--sidebar-b)' }}>
             <div className="w-9 h-9 rounded-2xl flex items-center justify-center text-base flex-shrink-0"
               style={{ background: 'var(--blush)', color: '#fff' }}>🐰</div>
             <div>
@@ -217,15 +240,25 @@ export default function Home() {
             {AGENTS.map(agent => {
               const isActive = activeAgentId === agent.id
               const color = AGENT_ACCENT[agent.id] || 'var(--blush)'
+              // ✅ 설정에서 변경된 이름 사용
+              const displayName = settings.agentNames[agent.id] || agent.name
               return (
                 <div key={agent.id} onClick={() => { setPage('office'); setActiveAgentId(agent.id) }}
                   className="px-3 py-2 flex items-center gap-2.5 cursor-pointer rounded-xl mb-0.5 text-[12px] transition-all"
                   style={{ background: isActive ? 'var(--sidebar-b)' : 'transparent', borderLeft: `2px solid ${isActive ? color : 'transparent'}`, color: isActive ? color : '#ffffff' }}>
-                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isActive ? color : 'var(--blush-b)' }} />
+                  {/* ✅ 5번 - 실제 업무중 표시 */}
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'animate-pulse' : ''}`}
+                    style={{ background: isActive ? color : 'var(--blush-b)' }} />
                   <span style={{ fontSize: 13 }}>{AGENT_ICONS[agent.id]}</span>
-                  <span>{settings.agentNames[agent.id] || agent.name}</span>
-                  <span className="ml-auto text-[9px]" style={{ color: isActive ? color : 'var(--blush-b)' }}>
-                    {isActive ? '작업중' : '대기'}
+                  <span>{displayName}</span>
+                  <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: isActive ? color + '33' : 'transparent',
+                      color: isActive ? color : 'var(--blush-b)',
+                      fontWeight: isActive ? 700 : 400,
+                      border: isActive ? `1px solid ${color}` : 'none',
+                    }}>
+                    {isActive ? '⚡업무중' : '대기'}
                   </span>
                 </div>
               )
@@ -240,7 +273,9 @@ export default function Home() {
               </div>
               <div className="flex justify-between">
                 <span style={{ color: 'var(--blush-b)' }}>상태</span>
-                <span style={{ color: 'var(--olive)', fontWeight: 500 }}>● 정상</span>
+                <span style={{ color: activeAgentId ? 'var(--copper)' : 'var(--olive)', fontWeight: 500 }}>
+                  {activeAgentId ? '⚡ 작업중' : '● 정상'}
+                </span>
               </div>
             </div>
           </div>
@@ -273,48 +308,80 @@ export default function Home() {
           {page === 'tasks' && <TaskManager />}
           {page === 'settings' && <Settings />}
 
-          {/* ✅ 팀 채팅 — 배지 + 전체내용 + 삭제 + 저장 */}
+          {/* ✅ 팀 채팅 - 선택삭제 + 배지 + 이름반영 */}
           {page === 'chat' && (
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-shrink-0">
                 <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text)' }}>💬 전체 대화 기록</h2>
-                {logs.length > 0 && (
-                  <button onClick={clearMessages}
-                    className="text-[12px] px-3 py-1.5 rounded-xl"
-                    style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
-                    🗑️ 대화 삭제
-                  </button>
-                )}
+                <div className="flex gap-2">
+                  {selectedIds.size > 0 && (
+                    <button onClick={deleteSelected}
+                      className="text-[12px] px-3 py-1.5 rounded-xl"
+                      style={{ background: 'var(--blush)', color: '#fff' }}>
+                      🗑️ 선택 삭제 ({selectedIds.size})
+                    </button>
+                  )}
+                  {logs.length > 0 && (
+                    <button onClick={clearAllMessages}
+                      className="text-[12px] px-3 py-1.5 rounded-xl"
+                      style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
+                      전체 삭제
+                    </button>
+                  )}
+                </div>
               </div>
+
               {logs.length === 0 ? (
                 <div className="m-auto text-center py-20">
                   <div style={{ fontSize: 48, marginBottom: 12 }}>🐰</div>
                   <p style={{ color: 'var(--muted)', fontSize: 14 }}>아직 대화 기록이 없어요</p>
                 </div>
-              ) : logs.slice().reverse().map(log => (
-                <div key={log.id} className="p-4 rounded-2xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span style={{ fontSize: 14 }}>{AGENT_ICONS[log.agentId]}</span>
-                    <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>{log.agentName}</span>
-                    <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString('ko-KR')}</span>
-                    {/* ✅ 저장 버튼 */}
-                    <button onClick={() => saveLog(log)}
-                      className="text-[11px] px-2 py-1 rounded-lg ml-1"
-                      style={{ background: 'var(--olive-l)', color: 'var(--olive)', border: '1px solid var(--olive-b)' }}>
-                      ⭐ 저장
-                    </button>
+              ) : logs.slice().reverse().map(log => {
+                const isSelected = selectedIds.has(log.id)
+                return (
+                  <div key={log.id} className="p-4 rounded-2xl cursor-pointer transition-all"
+                    style={{ background: isSelected ? 'var(--blush-l)' : 'var(--card)', border: `1.5px solid ${isSelected ? 'var(--blush)' : 'var(--border)'}` }}
+                    onClick={() => toggleSelect(log.id)}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {/* ✅ 선택 체크박스 */}
+                      <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                        style={{ background: isSelected ? 'var(--blush)' : 'var(--bg2)', border: `1.5px solid ${isSelected ? 'var(--blush)' : 'var(--border)'}` }}>
+                        {isSelected && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: 14 }}>{AGENT_ICONS[log.agentId]}</span>
+                      {/* ✅ 2번 - 변경된 이름 반영 */}
+                      <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>
+                        {getAgentName(log.agentId, log.agentName)}
+                      </span>
+                      {/* ✅ 3번 - 팀 채팅에도 배지 */}
+                      {(log as ExtChatLog).modelName && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full"
+                          style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
+                          {shortModel((log as ExtChatLog).modelName)}
+                        </span>
+                      )}
+                      <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>
+                        {new Date(log.createdAt).toLocaleString('ko-KR')}
+                      </span>
+                      <button onClick={e => { e.stopPropagation(); saveLog(log) }}
+                        className="text-[11px] px-2 py-1 rounded-lg"
+                        style={{ background: 'var(--olive-l)', color: 'var(--olive)', border: '1px solid var(--olive-b)' }}>
+                        ⭐ 저장
+                      </button>
+                    </div>
+                    <p className="text-[12px] mb-2 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>
+                      나 {log.userText}
+                    </p>
+                    <p className="text-[12px] px-3 py-2 rounded-xl" style={{ background: 'var(--bg2)', color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>
+                      {cleanText(log.result)}
+                    </p>
                   </div>
-                  <p className="text-[12px] mb-2 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>나 {log.userText}</p>
-                  {/* ✅ 전체 내용 표시 + 마크다운 제거 */}
-                  <p className="text-[12px] px-3 py-2 rounded-xl" style={{ background: 'var(--bg2)', color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>
-                    {cleanText(log.result)}
-                  </p>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
-          {/* ✅ 저장 자료 페이지 */}
+          {/* 저장 자료 */}
           {page === 'saved' && (
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
               <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text)' }}>⭐ 저장 자료</h2>
@@ -328,10 +395,18 @@ export default function Home() {
                 <div key={log.id} className="p-4 rounded-2xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span style={{ fontSize: 14 }}>{AGENT_ICONS[log.agentId]}</span>
-                    <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>{log.agentName}</span>
+                    <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>
+                      {getAgentName(log.agentId, log.agentName)}
+                    </span>
+                    {log.modelName && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full"
+                        style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
+                        {shortModel(log.modelName)}
+                      </span>
+                    )}
                     <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString('ko-KR')}</span>
                     <button onClick={() => deleteSaved(log.id)}
-                      className="text-[11px] px-2 py-1 rounded-lg ml-1"
+                      className="text-[11px] px-2 py-1 rounded-lg"
                       style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
                       🗑️ 삭제
                     </button>
@@ -391,8 +466,11 @@ export default function Home() {
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <span style={{ fontSize: 13 }}>{msg.agentId ? AGENT_ICONS[msg.agentId] : '⏳'}</span>
-                      <span style={{ color: accentOf(msg.agentId), fontWeight: 500 }}>{msg.agentName}</span>
-                      {/* ✅ 모델 배지 */}
+                      {/* ✅ 변경된 이름 반영 */}
+                      <span style={{ color: accentOf(msg.agentId), fontWeight: 500 }}>
+                        {getAgentName(msg.agentId, msg.agentName)}
+                      </span>
+                      {/* ✅ 배지 */}
                       {msg.modelName && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full"
                           style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
@@ -403,7 +481,6 @@ export default function Home() {
                     </div>
                     <div className="text-[13px] px-3.5 py-2.5 rounded-2xl rounded-tl-sm leading-relaxed"
                       style={{ background: '#fff', color: 'var(--text)', border: `1.5px solid ${accentOf(msg.agentId)}40`, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {/* ✅ 마크다운 제거 후 표시 */}
                       {msg.content ? cleanText(msg.content) : (
                         <span className="inline-flex gap-1 items-center">
                           {[0,1,2].map(i => (

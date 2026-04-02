@@ -11,10 +11,10 @@ export async function POST(req: Request) {
   const { steps, isPipeline } = parsePipeline(message)
   const encoder = new TextEncoder()
 
-  // ✅ 활성화된 팀 목록 (꺼진 팀은 라우팅 제외)
-  const enabledAgentIds = AGENTS
+  // ✅ 활성화된 팀 목록 — router 제외 (router는 직접 업무 안 함)
+  const workingAgentIds = AGENTS
     .map(a => a.id)
-    .filter(id => teamEnabled[id] !== false)
+    .filter(id => id !== 'router' && teamEnabled[id] !== false)
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -32,14 +32,14 @@ export async function POST(req: Request) {
             send({ type: 'pipeline_step', step: i + 1, total: steps.length, task: step.task })
           }
 
-          let targetAgentId: AgentId = step.agentId ?? 'router'
+          let targetAgentId: AgentId = step.agentId ?? 'content'
           let routerReason = ''
 
           if (!step.agentId) {
-            // ✅ 라우터 프롬프트에 활성화된 팀만 포함
-            const enabledTeamList = enabledAgentIds.join(', ')
+            // ✅ 라우터가 선택할 수 있는 팀: router 제외한 실무팀만
+            const teamList = workingAgentIds.join(', ')
             const dynamicRouterPrompt = ROUTER_SYSTEM_PROMPT +
-              `\n\n현재 활성화된 팀만 선택하세요: ${enabledTeamList}`
+              `\n\n반드시 다음 실무팀 중 하나만 선택하세요 (router 선택 불가): ${teamList}\n총괄실장(router)은 절대 선택하지 마세요. 항상 실무팀에게 위임하세요.`
 
             try {
               const routerRes = await anthropic.messages.create({
@@ -50,19 +50,24 @@ export async function POST(req: Request) {
               })
               const raw = routerRes.content[0].type === 'text' ? routerRes.content[0].text : ''
               const parsed = JSON.parse(raw)
-              targetAgentId = parsed.team as AgentId
+              const suggested = parsed.team as AgentId
               routerReason = parsed.reason ?? ''
-            } catch { /* 라우터 실패 시 router 사용 */ }
+
+              // ✅ router가 선택됐으면 강제로 content팀으로 대체
+              targetAgentId = (suggested && suggested !== 'router' && workingAgentIds.includes(suggested))
+                ? suggested
+                : (workingAgentIds[0] as AgentId ?? 'content')
+            } catch {
+              targetAgentId = workingAgentIds[0] as AgentId ?? 'content'
+            }
           }
 
-          // ✅ 꺼진 팀이면 router로 fallback
+          // ✅ 꺼진 팀이면 첫 번째 활성 팀으로 대체
           if (teamEnabled[targetAgentId] === false) {
-            targetAgentId = enabledAgentIds[0] as AgentId ?? 'router'
+            targetAgentId = workingAgentIds[0] as AgentId ?? 'content'
           }
 
-          const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[0]
-
-          // ✅ 설정된 모델 우선 사용, 없으면 step 지정 모델, 없으면 agents.ts 기본값
+          const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
           send({ type: 'agent', agentId: agent.id, agentName: agent.name, modelName: model, reason: routerReason, step: i + 1 })
@@ -92,9 +97,7 @@ export async function POST(req: Request) {
               model: teamModels['router'] ?? 'claude-haiku-4-5-20251001',
               max_tokens: 300,
               system: '당신은 검증 에이전트입니다. 결과물의 품질을 평가하고 개선점을 알려주세요. 3가지 bullet point로 정리하세요.',
-              messages: [
-                { role: 'user', content: `다음 결과물을 검증해주세요:\n\n${fullText}` }
-              ],
+              messages: [{ role: 'user', content: `다음 결과물을 검증해주세요:\n\n${fullText}` }],
             })
             const verifyText = verifyRes.content[0].type === 'text' ? verifyRes.content[0].text : ''
             send({ type: 'verify_result', text: verifyText })
