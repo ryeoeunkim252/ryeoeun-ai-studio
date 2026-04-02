@@ -9,7 +9,7 @@ import Settings from '@/components/Settings'
 
 const PixelOffice = dynamic(() => import('@/components/PixelOffice'), { ssr: false })
 
-type Page = 'dashboard' | 'office' | 'tasks' | 'chat' | 'settings'
+type Page = 'dashboard' | 'office' | 'tasks' | 'chat' | 'settings' | 'saved'
 
 const AGENT_ICONS: Record<string, string> = {
   router: '🔀', web: '🌐', content: '✍️', edu: '📚', research: '🔬', ops: '🚀'
@@ -24,8 +24,33 @@ const NAV = [
   { id: 'office'    as Page, icon: '🏢', label: 'AI 오피스' },
   { id: 'tasks'     as Page, icon: '📋', label: '작업 관리' },
   { id: 'chat'      as Page, icon: '💬', label: '팀 채팅' },
+  { id: 'saved'     as Page, icon: '⭐', label: '저장 자료' },
   { id: 'settings'  as Page, icon: '⚙️', label: '설정' },
 ]
+
+// ✅ 마크다운 기호 제거 함수
+const cleanText = (text: string) => {
+  return text
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '$1')  // 코드블록 내용만 남기기
+    .replace(/#{1,6}\s+/g, '')                    // ## 제목 기호 제거
+    .replace(/\*\*(.*?)\*\*/g, '$1')              // **볼드** 제거
+    .replace(/\*(.*?)\*/g, '$1')                  // *이탤릭* 제거
+    .replace(/`([^`]+)`/g, '$1')                  // `인라인코드` 기호 제거
+    .replace(/---+/g, '')                          // --- 구분선 제거
+    .trim()
+}
+
+// ✅ 모델명 짧게 표시
+const shortModel = (model?: string) => {
+  if (!model) return ''
+  return model
+    .replace('claude-opus-4-5', 'OPUS')
+    .replace('claude-sonnet-4-5', 'SONNET')
+    .replace('claude-haiku-4-5-20251001', 'HAIKU')
+    .replace('gemini-pro', 'GEMINI')
+    .replace('grok', 'GROK')
+    .toUpperCase()
+}
 
 export default function Home() {
   const [page, setPage] = useState<Page>('office')
@@ -38,15 +63,42 @@ export default function Home() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [logs, setLogs] = useState<ChatLog[]>([])
+  const [savedLogs, setSavedLogs] = useState<ChatLog[]>([])
 
   useEffect(() => {
     setSettings(loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS))
     setLogs(loadData<ChatLog[]>('nk_chatlogs', []))
+    setSavedLogs(loadData<ChatLog[]>('nk_savedlogs', []))
   }, [])
 
   const now = () => {
     const d = new Date()
     return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
+  }
+
+  // ✅ 대화 전체 삭제
+  const clearMessages = () => {
+    if (!confirm('대화 내용을 모두 삭제할까요?')) return
+    setMessages([])
+    setLogs([])
+    saveData('nk_chatlogs', [])
+  }
+
+  // ✅ 자료 저장
+  const saveLog = (log: ChatLog) => {
+    const already = savedLogs.find(s => s.id === log.id)
+    if (already) return alert('이미 저장된 자료예요!')
+    const updated = [...savedLogs, log]
+    setSavedLogs(updated)
+    saveData('nk_savedlogs', updated)
+    alert('⭐ 저장 자료에 보관했어요!')
+  }
+
+  // ✅ 저장 자료 삭제
+  const deleteSaved = (id: string) => {
+    const updated = savedLogs.filter(s => s.id !== id)
+    setSavedLogs(updated)
+    saveData('nk_savedlogs', updated)
   }
 
   const sendMessage = async () => {
@@ -76,7 +128,7 @@ export default function Home() {
       if (!res.ok || !res.body) throw new Error()
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
-      let buf = '', finalAgentId = 'router', finalAgentName = '라우터', fullContent = ''
+      let buf = '', finalAgentId = 'router', finalAgentName = '라우터', fullContent = '', finalModel = ''
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -89,22 +141,29 @@ export default function Home() {
           try {
             const ev = JSON.parse(raw)
             if (ev.type === 'agent') {
-              finalAgentId = ev.agentId; finalAgentName = ev.agentName
+              finalAgentId = ev.agentId; finalAgentName = ev.agentName; finalModel = ev.modelName ?? ''
               setActiveAgentId(ev.agentId as AgentId)
-              setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, agentId: ev.agentId, agentName: ev.agentName, modelName: ev.modelName } : m))
+              setMessages(prev => prev.map(m => m.id === agentMsgId
+                ? { ...m, agentId: ev.agentId, agentName: ev.agentName, modelName: ev.modelName } : m))
             } else if (ev.type === 'text') {
               fullContent += ev.text
-              setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, content: (m.content||'') + ev.text } : m))
+              setMessages(prev => prev.map(m => m.id === agentMsgId
+                ? { ...m, content: (m.content||'') + ev.text } : m))
             } else if (ev.type === 'done') {
               setActiveAgentId(null)
-              const newLog: ChatLog = { id: crypto.randomUUID(), userText: text, agentId: finalAgentId, agentName: finalAgentName, result: fullContent, createdAt: new Date().toISOString() }
+              const newLog: ChatLog = {
+                id: crypto.randomUUID(), userText: text,
+                agentId: finalAgentId, agentName: finalAgentName,
+                result: fullContent, createdAt: new Date().toISOString()
+              }
               const updated = [...logs, newLog]; setLogs(updated); saveData('nk_chatlogs', updated)
             }
           } catch { }
         }
       }
     } catch {
-      setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, content: '오류가 발생했어요. 다시 시도해주세요.', agentName: '시스템' } : m))
+      setMessages(prev => prev.map(m => m.id === agentMsgId
+        ? { ...m, content: '오류가 발생했어요. 다시 시도해주세요.', agentName: '시스템' } : m))
       setActiveAgentId(null)
     } finally { setLoading(false) }
   }
@@ -114,7 +173,7 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
 
-      {/* 🔵 상단 배너 */}
+      {/* 상단 배너 */}
       <div className="flex items-center justify-center gap-2 py-2 flex-shrink-0 text-[12px] font-medium"
         style={{ background: 'linear-gradient(90deg,#201018,#3d1020,#201018)', color:'#f5ede8', borderBottom:'1px solid var(--sidebar-b)' }}>
         <span style={{ color: 'var(--blush)' }}>✦</span>
@@ -124,14 +183,12 @@ export default function Home() {
 
       <div className="flex flex-1 overflow-hidden" style={{ display: 'grid', gridTemplateColumns: '180px 1fr 270px' }}>
 
-        {/* 🔵 사이드바 */}
+        {/* 사이드바 */}
         <aside className="flex flex-col overflow-hidden" style={{ background: 'var(--sidebar)', borderRight: '1px solid var(--sidebar-b)' }}>
           <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0"
             style={{ borderBottom: '1px solid var(--sidebar-b)' }}>
             <div className="w-9 h-9 rounded-2xl flex items-center justify-center text-base flex-shrink-0"
-              style={{ background: 'var(--blush)', color: '#fff' }}>
-              🐰
-            </div>
+              style={{ background: 'var(--blush)', color: '#fff' }}>🐰</div>
             <div>
               <p className="text-[13px] font-semibold" style={{ color: '#ffffff' }}>{USER_NAME}</p>
               <p className="text-[10px]" style={{ color: 'var(--blush-b)' }}>김려은 AI 스튜디오</p>
@@ -155,9 +212,7 @@ export default function Home() {
 
           <div className="mx-4 my-2 h-px" style={{ background: 'var(--sidebar-b)' }} />
 
-          <div className="px-4 py-1 text-[10px] font-medium tracking-widest" style={{ color: 'var(--blush-b)' }}>
-            AI 에이전트
-          </div>
+          <div className="px-4 py-1 text-[10px] font-medium tracking-widest" style={{ color: 'var(--blush-b)' }}>AI 에이전트</div>
           <div className="flex-1 overflow-y-auto px-2 pb-2">
             {AGENTS.map(agent => {
               const isActive = activeAgentId === agent.id
@@ -165,13 +220,8 @@ export default function Home() {
               return (
                 <div key={agent.id} onClick={() => { setPage('office'); setActiveAgentId(agent.id) }}
                   className="px-3 py-2 flex items-center gap-2.5 cursor-pointer rounded-xl mb-0.5 text-[12px] transition-all"
-                  style={{
-                    background: isActive ? 'var(--sidebar-b)' : 'transparent',
-                    borderLeft: `2px solid ${isActive ? color : 'transparent'}`,
-                    color: isActive ? color : '#ffffff',
-                  }}>
-                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ background: isActive ? color : 'var(--blush-b)' }} />
+                  style={{ background: isActive ? 'var(--sidebar-b)' : 'transparent', borderLeft: `2px solid ${isActive ? color : 'transparent'}`, color: isActive ? color : '#ffffff' }}>
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isActive ? color : 'var(--blush-b)' }} />
                   <span style={{ fontSize: 13 }}>{AGENT_ICONS[agent.id]}</span>
                   <span>{settings.agentNames[agent.id] || agent.name}</span>
                   <span className="ml-auto text-[9px]" style={{ color: isActive ? color : 'var(--blush-b)' }}>
@@ -196,9 +246,8 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* 🔵 메인 */}
+        {/* 메인 */}
         <div className="flex flex-col min-w-0 overflow-hidden" style={{ background: 'var(--bg2)' }}>
-
           <div className="px-5 py-3 flex items-center gap-3 flex-shrink-0"
             style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 18 }}>{NAV.find(n => n.id === page)?.icon}</span>
@@ -223,9 +272,20 @@ export default function Home() {
           {page === 'dashboard' && <Dashboard />}
           {page === 'tasks' && <TaskManager />}
           {page === 'settings' && <Settings />}
+
+          {/* ✅ 팀 채팅 — 배지 + 전체내용 + 삭제 + 저장 */}
           {page === 'chat' && (
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
-              <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text)' }}>💬 전체 대화 기록</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text)' }}>💬 전체 대화 기록</h2>
+                {logs.length > 0 && (
+                  <button onClick={clearMessages}
+                    className="text-[12px] px-3 py-1.5 rounded-xl"
+                    style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
+                    🗑️ 대화 삭제
+                  </button>
+                )}
+              </div>
               {logs.length === 0 ? (
                 <div className="m-auto text-center py-20">
                   <div style={{ fontSize: 48, marginBottom: 12 }}>🐰</div>
@@ -237,10 +297,48 @@ export default function Home() {
                     <span style={{ fontSize: 14 }}>{AGENT_ICONS[log.agentId]}</span>
                     <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>{log.agentName}</span>
                     <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString('ko-KR')}</span>
+                    {/* ✅ 저장 버튼 */}
+                    <button onClick={() => saveLog(log)}
+                      className="text-[11px] px-2 py-1 rounded-lg ml-1"
+                      style={{ background: 'var(--olive-l)', color: 'var(--olive)', border: '1px solid var(--olive-b)' }}>
+                      ⭐ 저장
+                    </button>
+                  </div>
+                  <p className="text-[12px] mb-2 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>나 {log.userText}</p>
+                  {/* ✅ 전체 내용 표시 + 마크다운 제거 */}
+                  <p className="text-[12px] px-3 py-2 rounded-xl" style={{ background: 'var(--bg2)', color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>
+                    {cleanText(log.result)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ✅ 저장 자료 페이지 */}
+          {page === 'saved' && (
+            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
+              <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text)' }}>⭐ 저장 자료</h2>
+              {savedLogs.length === 0 ? (
+                <div className="m-auto text-center py-20">
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
+                  <p style={{ color: 'var(--muted)', fontSize: 14 }}>저장된 자료가 없어요</p>
+                  <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8 }}>팀 채팅에서 ⭐ 저장 버튼을 눌러보세요!</p>
+                </div>
+              ) : savedLogs.slice().reverse().map(log => (
+                <div key={log.id} className="p-4 rounded-2xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span style={{ fontSize: 14 }}>{AGENT_ICONS[log.agentId]}</span>
+                    <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>{log.agentName}</span>
+                    <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString('ko-KR')}</span>
+                    <button onClick={() => deleteSaved(log.id)}
+                      className="text-[11px] px-2 py-1 rounded-lg ml-1"
+                      style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
+                      🗑️ 삭제
+                    </button>
                   </div>
                   <p className="text-[12px] mb-2 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>나 {log.userText}</p>
                   <p className="text-[12px] px-3 py-2 rounded-xl" style={{ background: 'var(--bg2)', color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>
-                    {log.result.slice(0, 300)}{log.result.length > 300 ? '...' : ''}
+                    {cleanText(log.result)}
                   </p>
                 </div>
               ))}
@@ -252,7 +350,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ✅ 오른쪽 채팅 패널 — overflow-hidden 고정 */}
+        {/* 오른쪽 채팅 패널 */}
         <div className="flex flex-col overflow-hidden"
           style={{ background: 'var(--blush-l)', borderLeft: '1px solid var(--blush-b)', height: '100%' }}>
           <div className="px-4 py-3.5 flex-shrink-0"
@@ -294,17 +392,19 @@ export default function Home() {
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <span style={{ fontSize: 13 }}>{msg.agentId ? AGENT_ICONS[msg.agentId] : '⏳'}</span>
                       <span style={{ color: accentOf(msg.agentId), fontWeight: 500 }}>{msg.agentName}</span>
+                      {/* ✅ 모델 배지 */}
                       {msg.modelName && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full"
                           style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
-                          {msg.modelName.replace('claude-','').replace('-4-5','').replace('-20251001','').replace('claude-','').toUpperCase()}
+                          {shortModel(msg.modelName)}
                         </span>
                       )}
                       <span className="ml-auto" style={{ color: 'var(--muted)' }}>{msg.time}</span>
                     </div>
                     <div className="text-[13px] px-3.5 py-2.5 rounded-2xl rounded-tl-sm leading-relaxed"
                       style={{ background: '#fff', color: 'var(--text)', border: `1.5px solid ${accentOf(msg.agentId)}40`, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {msg.content || (
+                      {/* ✅ 마크다운 제거 후 표시 */}
+                      {msg.content ? cleanText(msg.content) : (
                         <span className="inline-flex gap-1 items-center">
                           {[0,1,2].map(i => (
                             <span key={i} className="w-1.5 h-1.5 rounded-full animate-bounce"
