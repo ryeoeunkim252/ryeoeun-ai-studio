@@ -466,11 +466,6 @@ export default function PixelOffice({activeAgentId}:Props) {
           if(tile===undefined) continue
           if(tile===T.VOID) continue
 
-          // 빈 타일(0)은 일단 FLOOR로
-          if(tile===0){
-            drawTile(tc,tr,T.FLOOR,t); continue
-          }
-
           // MONITOR / CHAIR / PLANT / CARPET는 바닥 위에 그리기
           if(tile===T.MONITOR||tile===T.CHAIR||tile===T.PLANT){
             drawTile(tc,tr,T.FLOOR,t)
