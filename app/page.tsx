@@ -124,7 +124,7 @@ export default function Home() {
             </div>
             <div>
               <p className="text-[13px] font-semibold" style={{ color: '#ffffff' }}>{USER_NAME}</p>
-              <p className="text-[10px]" style={{ color: 'var(--blush-b)' }}>AI 스튜디오</p>
+              <p className="text-[10px]" style={{ color: 'var(--blush-b)' }}>김려은 AI 스튜디오</p>
             </div>
           </div>
 
