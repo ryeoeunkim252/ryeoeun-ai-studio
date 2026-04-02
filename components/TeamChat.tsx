@@ -8,6 +8,7 @@ interface MessageBlock {
   step?: number
   agentId?: AgentId
   agentName?: string
+  modelName?: string
   content: string
   isVerify?: boolean
   streaming?: boolean
@@ -113,7 +114,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
             if (ev.type === 'pipeline_step' && ev.step > 1) updateBlocks(b => [...b, { step: ev.step, content: '', streaming: true }])
             else if (ev.type === 'agent') {
               onActiveAgent(ev.agentId as AgentId)
-              updateBlocks(b => { const u=[...b]; u[u.length-1]={...u[u.length-1], agentId: ev.agentId, agentName: ev.agentName}; return u })
+              updateBlocks(b => { const u=[...b]; u[u.length-1]={...u[u.length-1], agentId: ev.agentId, agentName: ev.agentName, modelName: ev.modelName}; return u })
             } else if (ev.type === 'text') {
               updateBlocks(b => { const u=[...b]; u[u.length-1]={...u[u.length-1], content: u[u.length-1].content+ev.text}; return u })
             } else if (ev.type === 'step_done') {
@@ -198,6 +199,12 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                         <>
                           <span className="text-sm">{block.agentId ? AGENT_ICONS[block.agentId] : '⏳'}</span>
                           <span style={{ color: agentColor(block.agentId) }}>{block.agentName ?? '라우팅 중...'}</span>
+                          {block.modelName && (
+                            <span className="text-[7px] px-1.5 py-0.5 rounded-full"
+                              style={{ background: '#3d2458', color: '#e0b8ff', border: '1px solid #6d4a8a' }}>
+                              {block.modelName.replace('claude-','').replace('-4-5','').replace('-20251001','')}
+                            </span>
+                          )}
                           {block.step && msg.isPipeline && (
                             <span className="text-[6px] px-1.5 py-0.5 rounded-full" style={{ background: '#3d2458', color: '#c9a0dc' }}>
                               {block.step}단계

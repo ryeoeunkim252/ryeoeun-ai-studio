@@ -65,13 +65,13 @@ export async function POST(req: Request) {
           // ✅ 설정된 모델 우선 사용, 없으면 step 지정 모델, 없으면 agents.ts 기본값
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
-          send({ type: 'agent', agentId: agent.id, agentName: agent.name, reason: routerReason, step: i + 1 })
+          send({ type: 'agent', agentId: agent.id, agentName: agent.name, modelName: model, reason: routerReason, step: i + 1 })
 
           const taskWithContext = injectContext(step, prevResult)
 
           const stream = await anthropic.messages.stream({
             model,
-            max_tokens: 1024,
+            max_tokens: 4096,
             system: agent.systemPrompt,
             messages: [{ role: 'user', content: taskWithContext }],
           })
