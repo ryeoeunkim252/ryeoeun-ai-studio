@@ -244,7 +244,7 @@ export default function Home() {
         </div>
 
         {/* ── 채팅 ── */}
-        <div className="flex flex-col h-full"
+        <div className="flex flex-col overflow-hidden"
           style={{ background: 'var(--blush-l)', borderLeft: '1px solid var(--blush-b)' }}>
           <div className="px-4 py-3.5 flex-shrink-0"
             style={{ background: 'var(--sidebar)', borderBottom: '1px solid var(--sidebar-b)' }}>
