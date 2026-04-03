@@ -31,7 +31,7 @@ const NAV = [
 // ✅ 어떤 브라우저에서든 Apple 스타일 토끼로 고정
 const RabbitEmoji = ({ size = 40 }: { size?: number }) => (
   <img
-    src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/1f430.png"
+    src="/rabbit.png"
     alt="🐰"
     width={size}
     height={size}
