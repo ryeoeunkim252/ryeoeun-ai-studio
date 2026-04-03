@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { AGENTS, type AgentId } from '@/lib/agents'
-import { loadData, saveData, DEFAULT_SETTINGS, type AppSettings, type ChatLog, STUDIO_NAME, PAGE_TITLE, USER_NAME } from '@/lib/store'
+import { loadData, saveData, syncFromCloud, DEFAULT_SETTINGS, type AppSettings, type ChatLog, STUDIO_NAME, PAGE_TITLE, USER_NAME } from '@/lib/store'
 import Dashboard from '@/components/Dashboard'
 import TaskManager from '@/components/TaskManager'
 import Settings from '@/components/Settings'
@@ -27,6 +27,17 @@ const NAV = [
   { id: 'saved'     as Page, icon: '⭐', label: '저장 자료' },
   { id: 'settings'  as Page, icon: '⚙️', label: '설정' },
 ]
+
+// ✅ 어떤 브라우저에서든 Apple 스타일 토끼로 고정
+const RabbitEmoji = ({ size = 40 }: { size?: number }) => (
+  <img
+    src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/1f430.png"
+    alt="🐰"
+    width={size}
+    height={size}
+    style={{ display: 'inline-block', verticalAlign: 'middle', imageRendering: 'auto' }}
+  />
+)
 
 const cleanText = (text: string) => text
   .replace(/```[\w]*\n?([\s\S]*?)```/g, '$1')
@@ -64,16 +75,26 @@ export default function Home() {
   const [savedLogs, setSavedLogs] = useState<ExtChatLog[]>([])
   const [customTeams, setCustomTeams] = useState<CustomTeam[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [syncing, setSyncing] = useState(true)  // ✅ 동기화 상태
 
-  // ✅ 팀별 필터 상태
+  // 팀별 필터 상태
   const [chatFilter, setChatFilter] = useState<string | null>(null)
   const [savedFilter, setSavedFilter] = useState<string | null>(null)
 
+  // ✅ 앱 시작 시 클라우드에서 자동 동기화
   useEffect(() => {
-    setSettings(loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS))
-    setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
-    setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
-    setCustomTeams(loadData<CustomTeam[]>('nk_custom_teams', []))
+    const init = async () => {
+      setSyncing(true)
+      // 클라우드에서 localStorage로 동기화
+      await syncFromCloud()
+      // 동기화 후 데이터 로드
+      setSettings(loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS))
+      setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
+      setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
+      setCustomTeams(loadData<CustomTeam[]>('nk_custom_teams', []))
+      setSyncing(false)
+    }
+    init()
   }, [])
 
   const getAgentName = (agentId?: string, fallback?: string) =>
@@ -87,14 +108,12 @@ export default function Home() {
     return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
   }
 
-  // ✅ 팀별 대화 수 계산
   const getTeamCounts = (logList: ExtChatLog[]) => {
     const counts: Record<string, number> = {}
     logList.forEach(l => { counts[l.agentId] = (counts[l.agentId] || 0) + 1 })
     return counts
   }
 
-  // ✅ 팀 목록 (기본 + 커스텀)
   const allTeamIds = [...AGENTS.map(a => a.id), ...customTeams.map(t => t.id)]
 
   const toggleSelect = (id: string) => {
@@ -178,7 +197,7 @@ export default function Home() {
     } finally { setLoading(false) }
   }
 
-  // ✅ 팀별 사이드바 컴포넌트
+  // 팀별 사이드바 컴포넌트
   const TeamSidebar = ({ logList, filter, setFilter, onNew }: {
     logList: ExtChatLog[]; filter: string | null
     setFilter: (v: string | null) => void; onNew?: () => void
@@ -186,37 +205,24 @@ export default function Home() {
     const counts = getTeamCounts(logList)
     const teamsWithLogs = allTeamIds.filter(id => counts[id])
     const total = logList.length
-
     return (
       <div className="w-[160px] flex-shrink-0 flex flex-col overflow-hidden"
         style={{ background: 'var(--card)', borderRight: '1px solid var(--border)' }}>
-        {/* 헤더 */}
         <div className="px-3 py-3 flex items-center justify-between flex-shrink-0"
           style={{ borderBottom: '1px solid var(--border)' }}>
           <span className="text-[12px] font-semibold" style={{ color: 'var(--text)' }}>대화 목록</span>
           {onNew && (
-            <button onClick={onNew}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-[14px]"
+            <button onClick={onNew} className="w-6 h-6 rounded-lg flex items-center justify-center text-[14px]"
               style={{ background: 'var(--blush)', color: '#fff' }}>＋</button>
           )}
         </div>
-
-        {/* 전체 */}
-        <button onClick={() => setFilter(null)}
-          className="flex items-center gap-2 px-3 py-2.5 text-left transition-all"
-          style={{
-            background: filter === null ? 'var(--blush-l)' : 'transparent',
-            borderLeft: `3px solid ${filter === null ? 'var(--blush)' : 'transparent'}`,
-          }}>
+        <button onClick={() => setFilter(null)} className="flex items-center gap-2 px-3 py-2.5 text-left transition-all"
+          style={{ background: filter === null ? 'var(--blush-l)' : 'transparent', borderLeft: `3px solid ${filter === null ? 'var(--blush)' : 'transparent'}` }}>
           <span style={{ fontSize: 14 }}>💬</span>
           <span className="text-[12px] flex-1" style={{ color: filter === null ? 'var(--blush)' : 'var(--text2)', fontWeight: filter === null ? 600 : 400 }}>전체</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-            style={{ background: 'var(--bg2)', color: 'var(--muted)' }}>{total}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg2)', color: 'var(--muted)' }}>{total}</span>
         </button>
-
         <div className="mx-3 h-px my-1" style={{ background: 'var(--border)' }} />
-
-        {/* 팀별 */}
         <div className="flex-1 overflow-y-auto">
           {teamsWithLogs.length === 0 ? (
             <p className="text-[11px] text-center mt-4" style={{ color: 'var(--muted)' }}>대화 없음</p>
@@ -228,10 +234,7 @@ export default function Home() {
             return (
               <button key={id} onClick={() => setFilter(id)}
                 className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition-all"
-                style={{
-                  background: isSelected ? 'var(--blush-l)' : 'transparent',
-                  borderLeft: `3px solid ${isSelected ? 'var(--blush)' : 'transparent'}`,
-                }}>
+                style={{ background: isSelected ? 'var(--blush-l)' : 'transparent', borderLeft: `3px solid ${isSelected ? 'var(--blush)' : 'transparent'}` }}>
                 <span style={{ fontSize: 13 }}>{icon}</span>
                 <span className="text-[11px] flex-1 truncate" style={{ color: isSelected ? 'var(--blush)' : 'var(--text2)', fontWeight: isSelected ? 600 : 400 }}>{name}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0"
@@ -244,7 +247,6 @@ export default function Home() {
     )
   }
 
-  // ✅ 로그 카드 컴포넌트
   const LogCard = ({ log, selectable }: { log: ExtChatLog; selectable?: boolean }) => {
     const isSelected = selectedIds.has(log.id)
     return (
@@ -281,6 +283,22 @@ export default function Home() {
     )
   }
 
+  // ✅ 동기화 중 로딩 화면
+  if (syncing) {
+    return (
+      <div className="flex h-screen items-center justify-center flex-col gap-4" style={{ background: 'var(--bg)' }}>
+        <div className="text-4xl animate-bounce"><RabbitEmoji size={48} /></div>
+        <p className="text-[14px]" style={{ color: 'var(--muted)' }}>클라우드에서 데이터 불러오는 중...</p>
+        <div className="flex gap-1">
+          {[0,1,2].map(i => (
+            <span key={i} className="w-2 h-2 rounded-full animate-bounce"
+              style={{ background: 'var(--blush)', animationDelay: `${i*0.15}s` }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
 
@@ -295,8 +313,8 @@ export default function Home() {
         {/* 사이드바 */}
         <aside className="flex flex-col overflow-hidden" style={{ background: 'var(--sidebar)', borderRight: '1px solid var(--sidebar-b)' }}>
           <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--sidebar-b)' }}>
-            <div className="w-9 h-9 rounded-2xl flex items-center justify-center text-base flex-shrink-0"
-              style={{ background: 'var(--blush)', color: '#fff' }}>🐰</div>
+            <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'var(--blush)', color: '#fff' }}><RabbitEmoji size={24} /></div>
             <div>
               <p className="text-[13px] font-semibold" style={{ color: '#ffffff' }}>{USER_NAME}</p>
               <p className="text-[10px]" style={{ color: 'var(--blush-b)' }}>김려은 AI 스튜디오</p>
@@ -332,8 +350,7 @@ export default function Home() {
               )
             })}
             {customTeams.map(team => (
-              <div key={team.id}
-                className="px-3 py-2 flex items-center gap-2.5 cursor-pointer rounded-xl mb-0.5 text-[12px]"
+              <div key={team.id} className="px-3 py-2 flex items-center gap-2.5 cursor-pointer rounded-xl mb-0.5 text-[12px]"
                 style={{ color: '#ffffff' }}>
                 <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--blush-b)' }} />
                 <span style={{ fontSize: 13 }}>{team.icon}</span>
@@ -381,15 +398,11 @@ export default function Home() {
           {page === 'tasks' && <TaskManager />}
           {page === 'settings' && <Settings />}
 
-          {/* ✅ 팀 채팅 — 팀별 사이드바 + 필터 */}
+          {/* 팀 채팅 */}
           {page === 'chat' && (
             <div className="flex flex-1 overflow-hidden">
-              <TeamSidebar
-                logList={logs}
-                filter={chatFilter}
-                setFilter={setChatFilter}
-                onNew={() => { setMessages([]); setChatFilter(null) }}
-              />
+              <TeamSidebar logList={logs} filter={chatFilter} setFilter={setChatFilter}
+                onNew={() => { setMessages([]); setChatFilter(null) }} />
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
                 <div className="flex items-center justify-between flex-shrink-0">
                   <div className="flex items-center gap-2">
@@ -397,8 +410,7 @@ export default function Home() {
                       {chatFilter ? `${getIcon(chatFilter)} ${getAgentName(chatFilter)}` : '💬 전체 대화'}
                     </h2>
                     {chatFilter && (
-                      <button onClick={() => setChatFilter(null)}
-                        className="text-[11px] px-2 py-1 rounded-lg"
+                      <button onClick={() => setChatFilter(null)} className="text-[11px] px-2 py-1 rounded-lg"
                         style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
                         ✕ 전체 보기
                       </button>
@@ -417,7 +429,7 @@ export default function Home() {
                 </div>
                 {(chatFilter ? logs.filter(l => l.agentId === chatFilter) : logs).length === 0 ? (
                   <div className="m-auto text-center py-20">
-                    <div style={{ fontSize: 48, marginBottom: 12 }}>🐰</div>
+                    <div style={{ marginBottom: 12 }}><RabbitEmoji size={48} /></div>
                     <p style={{ color: 'var(--muted)', fontSize: 14 }}>
                       {chatFilter ? `${getAgentName(chatFilter)} 팀의 대화가 없어요` : '아직 대화 기록이 없어요'}
                     </p>
@@ -429,22 +441,17 @@ export default function Home() {
             </div>
           )}
 
-          {/* ✅ 저장 자료 — 팀별 사이드바 + 필터 */}
+          {/* 저장 자료 */}
           {page === 'saved' && (
             <div className="flex flex-1 overflow-hidden">
-              <TeamSidebar
-                logList={savedLogs}
-                filter={savedFilter}
-                setFilter={setSavedFilter}
-              />
+              <TeamSidebar logList={savedLogs} filter={savedFilter} setFilter={setSavedFilter} />
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <h2 className="text-[18px] font-semibold" style={{ color: 'var(--text)' }}>
                     {savedFilter ? `${getIcon(savedFilter)} ${getAgentName(savedFilter)}` : '⭐ 전체 저장 자료'}
                   </h2>
                   {savedFilter && (
-                    <button onClick={() => setSavedFilter(null)}
-                      className="text-[11px] px-2 py-1 rounded-lg"
+                    <button onClick={() => setSavedFilter(null)} className="text-[11px] px-2 py-1 rounded-lg"
                       style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
                       ✕ 전체 보기
                     </button>
@@ -452,7 +459,7 @@ export default function Home() {
                 </div>
                 {(savedFilter ? savedLogs.filter(l => l.agentId === savedFilter) : savedLogs).length === 0 ? (
                   <div className="m-auto text-center py-20">
-                    <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
+                    <div style={{ marginBottom: 12 }}><RabbitEmoji size={48} /></div>
                     <p style={{ color: 'var(--muted)', fontSize: 14 }}>
                       {savedFilter ? `${getAgentName(savedFilter)} 팀의 저장 자료가 없어요` : '저장된 자료가 없어요'}
                     </p>
@@ -497,7 +504,7 @@ export default function Home() {
           <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 min-h-0">
             {messages.length === 0 && (
               <div className="m-auto text-center px-3">
-                <div style={{ fontSize: 40, marginBottom: 10 }}>🐰</div>
+                <div style={{ marginBottom: 10 }}><RabbitEmoji size={40} /></div>
                 <p className="text-[13px] font-medium mb-4" style={{ color: 'var(--text)' }}>대표님, 무엇을 도와드릴까요? 🔥</p>
                 {[
                   { e: '✍️', t: '블로그 제목 5개 추천해줘' },
@@ -524,9 +531,7 @@ export default function Home() {
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <span style={{ fontSize: 13 }}>{msg.agentId ? AGENT_ICONS[msg.agentId] : '⏳'}</span>
-                      <span style={{ color: getAccent(msg.agentId), fontWeight: 500 }}>
-                        {getAgentName(msg.agentId, msg.agentName)}
-                      </span>
+                      <span style={{ color: getAccent(msg.agentId), fontWeight: 500 }}>{getAgentName(msg.agentId, msg.agentName)}</span>
                       {msg.modelName && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full"
                           style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
