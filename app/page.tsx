@@ -349,15 +349,24 @@ export default function Home() {
                 </div>
               )
             })}
-            {customTeams.map(team => (
-              <div key={team.id} className="px-3 py-2 flex items-center gap-2.5 cursor-pointer rounded-xl mb-0.5 text-[12px]"
-                style={{ color: '#ffffff' }}>
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--blush-b)' }} />
-                <span style={{ fontSize: 13 }}>{team.icon}</span>
-                <span>{settings.agentNames[team.id] || team.name}</span>
-                <span className="ml-auto text-[9px]" style={{ color: 'var(--blush-b)' }}>대기</span>
-              </div>
-            ))}
+            {customTeams.map(team => {
+              const isActive = activeAgentId === team.id
+              const color = 'var(--blush)'
+              return (
+                <div key={team.id}
+                  onClick={() => { setPage('office'); setActiveAgentId(team.id as AgentId) }}
+                  className="px-3 py-2 flex items-center gap-2.5 cursor-pointer rounded-xl mb-0.5 text-[12px] transition-all"
+                  style={{ background: isActive ? 'var(--sidebar-b)' : 'transparent', borderLeft: `2px solid ${isActive ? color : 'transparent'}`, color: isActive ? color : '#ffffff' }}>
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'animate-pulse' : ''}`} style={{ background: isActive ? color : 'var(--blush-b)' }} />
+                  <span style={{ fontSize: 13 }}>{team.icon}</span>
+                  <span>{settings.agentNames[team.id] || team.name}</span>
+                  <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full"
+                    style={{ background: isActive ? color+'33' : 'transparent', color: isActive ? color : 'var(--blush-b)', fontWeight: isActive ? 700 : 400, border: isActive ? `1px solid ${color}` : 'none' }}>
+                    {isActive ? '⚡업무중' : '대기'}
+                  </span>
+                </div>
+              )
+            })}
           </div>
           <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: '1px solid var(--sidebar-b)' }}>
             <div className="rounded-xl px-3 py-2 text-[10px]" style={{ background: 'var(--sidebar-b)' }}>
