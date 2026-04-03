@@ -147,7 +147,7 @@ export default function Dashboard() {
               <h3 className="text-[15px] font-bold mb-4" style={{ color: 'var(--text)' }}>📢 팀별 활동</h3>
               {logs.length === 0 ? (
                 <div className="text-center py-4">
-                  <div className="text-3xl mb-2">🐰</div>
+                  <img src="/rabbit.png" alt="🐰" width={36} height={36} style={{ display:'inline-block', marginBottom:8 }} />
                   <p className="text-[12px]" style={{ color: 'var(--muted)' }}>아직 데이터가 없어요</p>
                 </div>
               ) : (
@@ -180,7 +180,7 @@ export default function Dashboard() {
               <h3 className="text-[15px] font-bold mb-3" style={{ color: 'var(--text)' }}>🕐 최근 대화</h3>
               {logs.length === 0 ? (
                 <div className="text-center py-4">
-                  <div className="text-3xl mb-2">🐰</div>
+                  <img src="/rabbit.png" alt="🐰" width={36} height={36} style={{ display:'inline-block', marginBottom:8 }} />
                   <p className="text-[12px]" style={{ color: 'var(--muted)' }}>아직 대화 기록이 없어요</p>
                 </div>
               ) : (
