@@ -344,6 +344,188 @@ async function callGitHubAPI(toolName: string, input: Record<string, string>): P
 }
 
 // ══════════════════════════════════════════
+//  GOOGLE DRIVE 도구
+// ══════════════════════════════════════════
+const GDRIVE_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'gdrive_list_files',
+    description: 'Google Drive의 파일 목록을 가져옵니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '검색어 (선택사항)' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'gdrive_create_file',
+    description: 'Google Drive에 새 텍스트 파일을 생성합니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name:    { type: 'string', description: '파일 이름' },
+        content: { type: 'string', description: '파일 내용' },
+      },
+      required: ['name', 'content'],
+    },
+  },
+  {
+    name: 'gdrive_search_files',
+    description: 'Google Drive에서 파일을 검색합니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '검색어' },
+      },
+      required: ['query'],
+    },
+  },
+]
+
+// ══════════════════════════════════════════
+//  GOOGLE CALENDAR 도구
+// ══════════════════════════════════════════
+const GCAL_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'gcal_list_events',
+    description: 'Google Calendar의 일정 목록을 가져옵니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        days: { type: 'string', description: '며칠치 일정을 가져올지 (기본값: 7)' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'gcal_create_event',
+    description: 'Google Calendar에 새 일정을 추가합니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title:      { type: 'string', description: '일정 제목' },
+        start_time: { type: 'string', description: '시작 시간 (예: 2026-04-03T10:00:00)' },
+        end_time:   { type: 'string', description: '종료 시간 (예: 2026-04-03T11:00:00)' },
+        description:{ type: 'string', description: '일정 설명' },
+      },
+      required: ['title', 'start_time', 'end_time'],
+    },
+  },
+]
+
+// ══════════════════════════════════════════
+//  Google OAuth Access Token 발급
+// ══════════════════════════════════════════
+async function getGoogleAccessToken(): Promise<string> {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id:     process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN!,
+      grant_type:    'refresh_token',
+    }),
+  })
+  const data = await res.json()
+  return data.access_token
+}
+
+// ══════════════════════════════════════════
+//  Google Drive API 호출
+// ══════════════════════════════════════════
+async function callGDriveAPI(toolName: string, input: Record<string, string>): Promise<string> {
+  try {
+    const token = await getGoogleAccessToken()
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+    if (toolName === 'gdrive_list_files' || toolName === 'gdrive_search_files') {
+      const q = input.query ? `name contains '${input.query}'` : ''
+      const url = `https://www.googleapis.com/drive/v3/files?pageSize=10&fields=files(id,name,mimeType,modifiedTime)${q ? `&q=${encodeURIComponent(q)}` : ''}`
+      const res = await fetch(url, { headers })
+      const data = await res.json()
+      return JSON.stringify({
+        success: true,
+        files: data.files?.map((f: {id:string; name:string; mimeType:string; modifiedTime:string}) => ({
+          id: f.id, name: f.name, type: f.mimeType, modified: f.modifiedTime
+        })),
+        message: `✅ Google Drive 파일 ${data.files?.length || 0}개를 가져왔어요!`
+      })
+    }
+    if (toolName === 'gdrive_create_file') {
+      const meta = { name: input.name, mimeType: 'application/vnd.google-apps.document' }
+      const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST', headers,
+        body: JSON.stringify(meta),
+      })
+      const data = await res.json()
+      return JSON.stringify({
+        success: true,
+        file_id: data.id,
+        message: `✅ Google Drive에 "${input.name}" 파일을 생성했어요!`
+      })
+    }
+    return JSON.stringify({ error: '알 수 없는 도구' })
+  } catch (err) {
+    return JSON.stringify({ error: String(err) })
+  }
+}
+
+// ══════════════════════════════════════════
+//  Google Calendar API 호출
+// ══════════════════════════════════════════
+async function callGCalAPI(toolName: string, input: Record<string, string>): Promise<string> {
+  try {
+    const token = await getGoogleAccessToken()
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+    if (toolName === 'gcal_list_events') {
+      const days = parseInt(input.days || '7')
+      const now = new Date().toISOString()
+      const future = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+      const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${now}&timeMax=${future}&singleEvents=true&orderBy=startTime&maxResults=10`
+      const res = await fetch(url, { headers })
+      const data = await res.json()
+      return JSON.stringify({
+        success: true,
+        events: data.items?.map((e: {summary:string; start:{dateTime?:string; date?:string}; end:{dateTime?:string; date?:string}}) => ({
+          title: e.summary,
+          start: e.start?.dateTime || e.start?.date,
+          end: e.end?.dateTime || e.end?.date,
+        })),
+        message: `✅ 앞으로 ${days}일간 일정 ${data.items?.length || 0}개를 가져왔어요!`
+      })
+    }
+    if (toolName === 'gcal_create_event') {
+      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          summary: input.title,
+          description: input.description || '',
+          start: { dateTime: input.start_time, timeZone: 'Asia/Seoul' },
+          end:   { dateTime: input.end_time,   timeZone: 'Asia/Seoul' },
+        }),
+      })
+      const data = await res.json()
+      return JSON.stringify({
+        success: true,
+        event_id: data.id,
+        link: data.htmlLink,
+        message: `✅ "${input.title}" 일정이 Google Calendar에 추가됐어요!`
+      })
+    }
+    return JSON.stringify({ error: '알 수 없는 도구' })
+  } catch (err) {
+    return JSON.stringify({ error: String(err) })
+  }
+}
+
+// ══════════════════════════════════════════
 //  팀별 도구 연결 확인
 // ══════════════════════════════════════════
 function hasToolForTeam(toolId: string, teamId: string, mcpEnabled: Record<string, boolean>, mcpTeams: Record<string, string[]>): boolean {
@@ -420,18 +602,24 @@ export async function POST(req: Request) {
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
-          const useNotion = hasToolForTeam('notion', targetAgentId, mcpEnabled, mcpTeams)
-          const useFigma  = hasToolForTeam('figma',  targetAgentId, mcpEnabled, mcpTeams)
-          const useGitHub = hasToolForTeam('github', targetAgentId, mcpEnabled, mcpTeams)
+          const useNotion = hasToolForTeam('notion',         targetAgentId, mcpEnabled, mcpTeams)
+          const useFigma  = hasToolForTeam('figma',           targetAgentId, mcpEnabled, mcpTeams)
+          const useGitHub = hasToolForTeam('github',          targetAgentId, mcpEnabled, mcpTeams)
+          const useGDrive = hasToolForTeam('google-drive',    targetAgentId, mcpEnabled, mcpTeams)
+          const useGCal   = hasToolForTeam('google-calendar', targetAgentId, mcpEnabled, mcpTeams)
           const tools = [
             ...(useNotion ? NOTION_TOOLS : []),
             ...(useFigma  ? FIGMA_TOOLS  : []),
             ...(useGitHub ? GITHUB_TOOLS : []),
+            ...(useGDrive ? GDRIVE_TOOLS : []),
+            ...(useGCal   ? GCAL_TOOLS   : []),
           ]
           const mcpToolNames = [
             ...(useNotion ? ['Notion'] : []),
             ...(useFigma  ? ['Figma']  : []),
             ...(useGitHub ? ['GitHub'] : []),
+            ...(useGDrive ? ['Google Drive'] : []),
+            ...(useGCal   ? ['Google Calendar'] : []),
           ].join(', ')
 
           send({
@@ -470,12 +658,16 @@ export async function POST(req: Request) {
                   const isNotion = block.name.startsWith('notion_')
                   const isFigma  = block.name.startsWith('figma_')
                   const isGitHub = block.name.startsWith('github_')
-                  const label = isNotion ? 'Notion' : isFigma ? 'Figma' : isGitHub ? 'GitHub' : '도구'
+                  const isGDrive = block.name.startsWith('gdrive_')
+                  const isGCal   = block.name.startsWith('gcal_')
+                  const label = isNotion ? 'Notion' : isFigma ? 'Figma' : isGitHub ? 'GitHub' : isGDrive ? 'Google Drive' : isGCal ? 'Google Calendar' : '도구'
                   send({ type: 'text', text: `\n🔧 ${label} ${block.name} 실행 중...\n`, step: i + 1 })
                   let result = ''
-                  if (isNotion) result = await callNotionAPI(block.name, block.input as Record<string, string>)
-                  else if (isFigma) result = await callFigmaAPI(block.name, block.input as Record<string, string>)
+                  if (isNotion)      result = await callNotionAPI(block.name, block.input as Record<string, string>)
+                  else if (isFigma)  result = await callFigmaAPI(block.name, block.input as Record<string, string>)
                   else if (isGitHub) result = await callGitHubAPI(block.name, block.input as Record<string, string>)
+                  else if (isGDrive) result = await callGDriveAPI(block.name, block.input as Record<string, string>)
+                  else if (isGCal)   result = await callGCalAPI(block.name, block.input as Record<string, string>)
                   else result = JSON.stringify({ error: '알 수 없는 도구' })
                   const parsed = JSON.parse(result)
                   if (parsed.message) {
