@@ -512,6 +512,12 @@ async function callGCalAPI(toolName: string, input: Record<string, string>): Pro
         }),
       })
       const data = await res.json()
+      // ✅ 에러 체크 추가 (버그 수정)
+      if (!res.ok || data.error) {
+        return JSON.stringify({
+          error: data.error?.message || `Calendar API 실패 (상태코드: ${res.status})`
+        })
+      }
       return JSON.stringify({
         success: true,
         event_id: data.id,
