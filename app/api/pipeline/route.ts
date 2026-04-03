@@ -634,7 +634,16 @@ export async function POST(req: Request) {
             mcpTools: mcpToolNames || null,
           })
 
-          const taskWithContext = injectContext(step, prevResult)
+          // ✅ 현재 날짜/시간을 에이전트에게 알려줌
+          const nowKST = new Date().toLocaleString('ko-KR', { 
+            timeZone: 'Asia/Seoul',
+            year: 'numeric', month: 'long', day: 'numeric',
+            weekday: 'long', hour: '2-digit', minute: '2-digit'
+          })
+          const dateContext = `[현재 날짜/시간: ${nowKST} (KST)]
+
+`
+          const taskWithContext = dateContext + injectContext(step, prevResult)
 
           if (tools.length > 0) {
             const messages: Anthropic.MessageParam[] = [
