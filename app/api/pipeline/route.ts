@@ -59,7 +59,7 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
       const res = await fetch('https://api.notion.com/v1/pages', {
         method: 'POST', headers,
         body: JSON.stringify({
-          parent: { type: 'workspace', workspace: true },
+          parent: { type: 'page_id', page_id: '3379d3b60d6180d1a64bc5c9e3f00fa9' },
           properties: { title: { title: [{ text: { content: input.title } }] } },
           children: [{
             object: 'block', type: 'paragraph',
