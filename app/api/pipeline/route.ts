@@ -447,6 +447,9 @@ async function callGDriveAPI(toolName: string, input: Record<string, string>): P
       const url = `https://www.googleapis.com/drive/v3/files?pageSize=10&fields=files(id,name,mimeType,modifiedTime)${q ? `&q=${encodeURIComponent(q)}` : ''}`
       const res = await fetch(url, { headers })
       const data = await res.json()
+      if (!res.ok || data.error) {
+        return JSON.stringify({ error: data.error?.message || 'Drive 목록 조회 실패: ' + res.status })
+      }
       return JSON.stringify({
         success: true,
         files: data.files?.map((f: {id:string; name:string; mimeType:string; modifiedTime:string}) => ({
@@ -462,6 +465,9 @@ async function callGDriveAPI(toolName: string, input: Record<string, string>): P
         body: JSON.stringify(meta),
       })
       const data = await res.json()
+      if (!res.ok || data.error) {
+        return JSON.stringify({ error: data.error?.message || 'Drive 파일 생성 실패: ' + res.status })
+      }
       return JSON.stringify({
         success: true,
         file_id: data.id,
