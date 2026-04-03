@@ -379,7 +379,8 @@ export async function POST(req: Request) {
                   send({ type: 'text', text: `\n🔧 ${toolLabel} ${block.name} 실행 중...\n`, step: i + 1 })
                   const result = isFigmaTool
                     ? await callFigmaAPI(block.name, block.input as Record<string, string>)
-                    : await callNotionAPI(block.name, block.input as Record<string, string>)                  const parsed = JSON.parse(result)
+                    : await callNotionAPI(block.name, block.input as Record<string, string>)
+                  const parsed = JSON.parse(result)
                   if (parsed.message) {
                     send({ type: 'text', text: parsed.message + '\n', step: i + 1 })
                     fullText += parsed.message + '\n'
