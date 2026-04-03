@@ -6,9 +6,15 @@ export default function TaskManager() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [input, setInput] = useState('')
   const [filter, setFilter] = useState<'all'|'todo'|'done'>('all')
+
   useEffect(()=>{ setTasks(loadData<Task[]>('nk_tasks',[])) },[])
+
   const save=(u:Task[])=>{ setTasks(u); saveData('nk_tasks',u) }
-  const add=()=>{ if(!input.trim())return; save([{id:crypto.randomUUID(),text:input.trim(),agentId:'router',agentName:'미배정',done:false,createdAt:new Date().toISOString()},...tasks]); setInput('') }
+  const add=()=>{
+    if(!input.trim()) return
+    save([{ id:crypto.randomUUID(), text:input.trim(), agentId:'router', agentName:'총괄실장', done:false, createdAt:new Date().toISOString() },...tasks])
+    setInput('')
+  }
   const toggle=(id:string)=>save(tasks.map(t=>t.id===id?{...t,done:!t.done}:t))
   const del=(id:string)=>save(tasks.filter(t=>t.id!==id))
   const filtered=tasks.filter(t=>filter==='all'?true:filter==='done'?t.done:!t.done)
@@ -37,23 +43,26 @@ export default function TaskManager() {
           {(['all','todo','done'] as const).map(f=>(
             <button key={f} onClick={()=>setFilter(f)} className="px-4 py-1.5 rounded-full text-[12px]"
               style={{background:filter===f?'var(--blush)':'var(--card)',color:filter===f?'#fff':'var(--muted)',border:filter===f?'none':'1px solid var(--border)'}}>
-              {f==='all'?'🗂 전체':f==='todo'?'⏳ 진행중':'✅ 완료'}
+              {f==='all'?'📋 전체':f==='todo'?'⏳ 진행중':'✅ 완료'}
             </button>
           ))}
         </div>
 
         {filtered.length===0?(
           <div className="text-center py-16" style={{color:'var(--muted)'}}>
-            <div style={{fontSize:40,marginBottom:12}}>🐰</div>
+            {/* ✅ Apple 스타일 토끼 고정 */}
+            <div style={{marginBottom:12,display:'flex',justifyContent:'center'}}>
+              <img src="/rabbit.png" alt="🐰" width={48} height={48} />
+            </div>
             <p className="text-[13px]">작업을 추가해보세요!</p>
           </div>
         ):(
           <div className="flex flex-col gap-2">
             {filtered.map(task=>(
               <div key={task.id} className="flex items-center gap-3 p-4 rounded-2xl"
-                style={{background:'var(--card)',border:'1.5px solid var(--border)',opacity:task.done?.7:1}}>
+                style={{background:'var(--card)',border:'1.5px solid var(--border)',opacity:task.done?0.7:1}}>
                 <button onClick={()=>toggle(task.id)} className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{background:task.done?'var(--blush)':'transparent',border:`2px solid ${task.done?'var(--blush)':'var(--border2)'}`,color:'#fff'}}>
+                  style={{background:task.done?'var(--blush)':'transparent',border:`2px solid ${task.done?'var(--blush)':'var(--border)'}`,color:'#fff'}}>
                   {task.done&&'✓'}
                 </button>
                 <div className="flex-1 min-w-0">
