@@ -251,7 +251,131 @@ async function callFigmaAPI(toolName: string, input: Record<string, string>): Pr
   }
 }
 
-function hasNotionForTeam(teamId: string, mcpEnabled: Record<string, boolean>, mcpTeams: Record<string, string[]>): boolean {
+// ✅ GitHub REST API 도구 정의
+const GITHUB_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'github_list_repos',
+    description: '내 GitHub 저장소 목록을 가져옵니다.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'github_list_issues',
+    description: 'GitHub 저장소의 이슈 목록을 가져옵니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        repo: { type: 'string', description: '저장소 이름 (예: ryeoeun-ai-studio)' },
+      },
+      required: ['repo'],
+    },
+  },
+  {
+    name: 'github_create_issue',
+    description: 'GitHub 저장소에 새 이슈를 생성합니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        repo:  { type: 'string', description: '저장소 이름 (예: ryeoeun-ai-studio)' },
+        title: { type: 'string', description: '이슈 제목' },
+        body:  { type: 'string', description: '이슈 내용' },
+      },
+      required: ['repo', 'title', 'body'],
+    },
+  },
+  {
+    name: 'github_list_commits',
+    description: 'GitHub 저장소의 최근 커밋 목록을 가져옵니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        repo: { type: 'string', description: '저장소 이름 (예: ryeoeun-ai-studio)' },
+      },
+      required: ['repo'],
+    },
+  },
+]
+
+// ✅ GitHub API 실제 호출
+async function callGitHubAPI(toolName: string, input: Record<string, string>): Promise<string> {
+  const token = process.env.GITHUB_TOKEN
+  if (!token) return JSON.stringify({ error: 'GITHUB_TOKEN이 설정되지 않았어요' })
+
+  const headers: Record<string, string> = {
+    'Authorization': `token ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+  }
+
+  try {
+    // 내 GitHub 사용자 정보 가져오기
+    const meRes = await fetch('https://api.github.com/user', { headers })
+    const me = await meRes.json()
+    const owner = me.login
+
+    if (toolName === 'github_list_repos') {
+      const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=10', { headers })
+      const data = await res.json()
+      return JSON.stringify({
+        success: true,
+        repos: data.map((r: {name:string; description:string; updated_at:string}) => ({
+          name: r.name, description: r.description, updated: r.updated_at
+        })),
+        message: `✅ GitHub 저장소 ${data.length}개를 가져왔어요!`
+      })
+    }
+
+    if (toolName === 'github_list_issues') {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/issues?state=open&per_page=10`, { headers })
+      const data = await res.json()
+      if (data.message) return JSON.stringify({ error: data.message })
+      return JSON.stringify({
+        success: true,
+        issues: data.map((i: {number:number; title:string; state:string; created_at:string}) => ({
+          number: i.number, title: i.title, state: i.state, created: i.created_at
+        })),
+        message: `✅ 이슈 ${data.length}개를 가져왔어요!`
+      })
+    }
+
+    if (toolName === 'github_create_issue') {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/issues`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ title: input.title, body: input.body }),
+      })
+      const data = await res.json()
+      if (data.message) return JSON.stringify({ error: data.message })
+      return JSON.stringify({
+        success: true,
+        issue_number: data.number,
+        url: data.html_url,
+        message: `✅ 이슈 #${data.number} "${input.title}"이 생성됐어요! 링크: ${data.html_url}`
+      })
+    }
+
+    if (toolName === 'github_list_commits') {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/commits?per_page=10`, { headers })
+      const data = await res.json()
+      if (data.message) return JSON.stringify({ error: data.message })
+      return JSON.stringify({
+        success: true,
+        commits: data.map((c: {sha:string; commit:{message:string; author:{date:string}}}) => ({
+          sha: c.sha.slice(0,7), message: c.commit.message, date: c.commit.author.date
+        })),
+        message: `✅ 최근 커밋 ${data.length}개를 가져왔어요!`
+      })
+    }
+
+    return JSON.stringify({ error: '알 수 없는 도구' })
+  } catch (err) {
+    return JSON.stringify({ error: String(err) })
+  }
+}
+
+function hasGitHubForTeam(teamId: string, mcpEnabled: Record<string, boolean>, mcpTeams: Record<string, string[]>): boolean {
+  if (!mcpEnabled['github']) return false
+  const teams = mcpTeams['github'] || []
+  return teams.includes(teamId)
+}
   if (!mcpEnabled['notion']) return false
   const teams = mcpTeams['notion'] || []
   return teams.includes(teamId)
@@ -331,13 +455,16 @@ export async function POST(req: Request) {
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
           const useNotion = hasNotionForTeam(targetAgentId, mcpEnabled, mcpTeams)
           const useFigma  = hasFigmaForTeam(targetAgentId, mcpEnabled, mcpTeams)
+          const useGitHub = hasGitHubForTeam(targetAgentId, mcpEnabled, mcpTeams)
           const tools = [
             ...(useNotion ? NOTION_TOOLS : []),
             ...(useFigma  ? FIGMA_TOOLS  : []),
+            ...(useGitHub ? GITHUB_TOOLS : []),
           ]
           const mcpToolNames = [
             ...(useNotion ? ['Notion'] : []),
             ...(useFigma  ? ['Figma']  : []),
+            ...(useGitHub ? ['GitHub'] : []),
           ].join(', ')
 
           send({
@@ -374,11 +501,14 @@ export async function POST(req: Request) {
                 const toolResults: Anthropic.ToolResultBlockParam[] = []
                 for (const block of res.content) {
                   if (block.type !== 'tool_use') continue
-                  const isFigmaTool = block.name.startsWith('figma_')
-                  const toolLabel = isFigmaTool ? 'Figma' : 'Notion'
+                  const isFigmaTool  = block.name.startsWith('figma_')
+                  const isGitHubTool = block.name.startsWith('github_')
+                  const toolLabel = isFigmaTool ? 'Figma' : isGitHubTool ? 'GitHub' : 'Notion'
                   send({ type: 'text', text: `\n🔧 ${toolLabel} ${block.name} 실행 중...\n`, step: i + 1 })
                   const result = isFigmaTool
                     ? await callFigmaAPI(block.name, block.input as Record<string, string>)
+                    : isGitHubTool
+                    ? await callGitHubAPI(block.name, block.input as Record<string, string>)
                     : await callNotionAPI(block.name, block.input as Record<string, string>)
                   const parsed = JSON.parse(result)
                   if (parsed.message) {
