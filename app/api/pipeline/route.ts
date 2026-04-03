@@ -11,7 +11,7 @@ const NOTION_TOOLS: Anthropic.Tool[] = [
   {
     name: 'notion_create_page',
     description: 'Notion에 새 페이지를 생성합니다. 항상 정해진 양식대로 모든 필드를 채워서 저장하세요.',
-    input_schema: {
+    input_schema: {h
       type: 'object',
       properties: {
         title:     { type: 'string', description: '페이지 제목' },
@@ -429,6 +429,9 @@ async function getGoogleAccessToken(): Promise<string> {
     }),
   })
   const data = await res.json()
+  if (!res.ok || !data.access_token) {
+    throw new Error(`Google 토큰 발급 실패: ${data.error || 'unknown'} - ${data.error_description || ''}`)
+  }
   return data.access_token
 }
 
