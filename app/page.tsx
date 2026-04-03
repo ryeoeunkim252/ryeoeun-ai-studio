@@ -154,6 +154,9 @@ export default function Home() {
     const teamEnabled = loadData<Record<string, boolean>>('nk_team_enabled', {
       router: true, web: true, content: true, edu: true, research: true, ops: true,
     })
+    // ✅ MCP 설정 로드
+    const mcpEnabled = loadData<Record<string, boolean>>('nk_mcp', {})
+    const mcpTeams   = loadData<Record<string, string[]>>('nk_mcp_teams', {})
     const agentMsgId = crypto.randomUUID()
     setMessages(prev => [...prev,
       { id: crypto.randomUUID(), role: 'user', text, time: now() },
@@ -162,7 +165,7 @@ export default function Home() {
     try {
       const res = await fetch('/api/pipeline', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, teamModels, teamEnabled }),
+        body: JSON.stringify({ message: text, teamModels, teamEnabled, mcpEnabled, mcpTeams }),
       })
       if (!res.ok || !res.body) throw new Error()
       const reader = res.body.getReader(); const decoder = new TextDecoder()

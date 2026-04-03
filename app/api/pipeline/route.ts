@@ -4,17 +4,52 @@ import { AGENTS, ROUTER_SYSTEM_PROMPT, type AgentId } from '@/lib/agents'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// ✅ MCP 서버 URL 매핑 (실제 연결 주소)
+const MCP_SERVERS: Record<string, { url: string; name: string }> = {
+  'gmail':           { url: 'https://gmail.mcp.claude.com/mcp',    name: 'gmail-mcp' },
+  'google-drive':    { url: 'https://drive.mcp.claude.com/mcp',    name: 'gdrive-mcp' },
+  'google-calendar': { url: 'https://calendar.mcp.claude.com/mcp', name: 'gcal-mcp' },
+  'github':          { url: 'https://github.mcp.claude.com/mcp',   name: 'github-mcp' },
+  'slack':           { url: 'https://slack.mcp.claude.com/mcp',    name: 'slack-mcp' },
+  'notion':          { url: 'https://notion.mcp.claude.com/mcp',   name: 'notion-mcp' },
+  'figma':           { url: 'https://figma.mcp.claude.com/mcp',    name: 'figma-mcp' },
+  'jira':            { url: 'https://jira.mcp.claude.com/mcp',     name: 'jira-mcp' },
+}
+
 export async function POST(req: Request) {
-  const { message, teamModels = {}, teamEnabled = {} } = await req.json()
-  if (!message?.trim()) return new Response('입력이 없습니다', { status: 400 })
+  const {
+    message,
+    teamModels = {},
+    teamEnabled = {},
+    mcpEnabled = {},   // ✅ MCP ON/OFF 상태
+    mcpTeams = {},     // ✅ MCP별 담당 팀
+  } = await req.json()
+
+  if (!message?.trim()) return new Response('메시지가 없습니다', { status: 400 })
 
   const { steps, isPipeline } = parsePipeline(message)
   const encoder = new TextEncoder()
 
-  // ✅ 활성화된 팀 목록 — router 제외 (router는 직접 업무 안 함)
   const workingAgentIds = AGENTS
     .map(a => a.id)
     .filter(id => id !== 'router' && teamEnabled[id] !== false)
+
+  // ✅ 특정 팀에 연결된 MCP 서버 목록 가져오기
+  const getMcpServersForTeam = (teamId: string) => {
+    const servers = []
+    for (const [mcpId, enabled] of Object.entries(mcpEnabled)) {
+      if (!enabled) continue
+      const assignedTeams: string[] = mcpTeams[mcpId] || []
+      if (assignedTeams.includes(teamId) && MCP_SERVERS[mcpId]) {
+        servers.push({
+          type: 'url' as const,
+          url: MCP_SERVERS[mcpId].url,
+          name: MCP_SERVERS[mcpId].name,
+        })
+      }
+    }
+    return servers
+  }
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -36,10 +71,9 @@ export async function POST(req: Request) {
           let routerReason = ''
 
           if (!step.agentId) {
-            // ✅ 라우터가 선택할 수 있는 팀: router 제외한 실무팀만
             const teamList = workingAgentIds.join(', ')
             const dynamicRouterPrompt = ROUTER_SYSTEM_PROMPT +
-              `\n\n반드시 다음 실무팀 중 하나만 선택하세요 (router 선택 불가): ${teamList}\n총괄실장(router)은 절대 선택하지 마세요. 항상 실무팀에게 위임하세요.`
+              `\n\n반드시 다음 목록에서만 팀을 선택하세요(router 제외): ${teamList}\n총괄실장(router)은 절대 선택하지 말고, 항상 다른 팀으로 라우팅하세요.`
 
             try {
               const routerRes = await anthropic.messages.create({
@@ -53,7 +87,6 @@ export async function POST(req: Request) {
               const suggested = parsed.team as AgentId
               routerReason = parsed.reason ?? ''
 
-              // ✅ router가 선택됐으면 강제로 content팀으로 대체
               targetAgentId = (suggested && suggested !== 'router' && workingAgentIds.includes(suggested))
                 ? suggested
                 : (workingAgentIds[0] as AgentId ?? 'content')
@@ -62,7 +95,6 @@ export async function POST(req: Request) {
             }
           }
 
-          // ✅ 꺼진 팀이면 첫 번째 활성 팀으로 대체
           if (teamEnabled[targetAgentId] === false) {
             targetAgentId = workingAgentIds[0] as AgentId ?? 'content'
           }
@@ -70,16 +102,32 @@ export async function POST(req: Request) {
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
-          send({ type: 'agent', agentId: agent.id, agentName: agent.name, modelName: model, reason: routerReason, step: i + 1 })
+          // ✅ 이 팀에 연결된 MCP 서버 목록
+          const mcpServers = getMcpServersForTeam(targetAgentId)
+          const mcpNames = mcpServers.map(s => s.name).join(', ')
+
+          send({
+            type: 'agent',
+            agentId: agent.id,
+            agentName: agent.name,
+            modelName: model,
+            reason: routerReason,
+            step: i + 1,
+            mcpTools: mcpNames || null,  // ✅ 사용 중인 MCP 도구 이름
+          })
 
           const taskWithContext = injectContext(step, prevResult)
 
-          const stream = await anthropic.messages.stream({
+          // ✅ MCP 서버가 있으면 연결해서 호출
+          const streamParams: Parameters<typeof anthropic.messages.stream>[0] = {
             model,
             max_tokens: 4096,
             system: agent.systemPrompt,
             messages: [{ role: 'user', content: taskWithContext }],
-          })
+            ...(mcpServers.length > 0 && { mcp_servers: mcpServers }),
+          }
+
+          const stream = await anthropic.messages.stream(streamParams)
 
           let fullText = ''
           for await (const chunk of stream) {
@@ -96,8 +144,8 @@ export async function POST(req: Request) {
             const verifyRes = await anthropic.messages.create({
               model: teamModels['router'] ?? 'claude-haiku-4-5-20251001',
               max_tokens: 300,
-              system: '당신은 검증 에이전트입니다. 결과물의 품질을 평가하고 개선점을 알려주세요. 3가지 bullet point로 정리하세요.',
-              messages: [{ role: 'user', content: `다음 결과물을 검증해주세요:\n\n${fullText}` }],
+              system: '당신은 검토 에이전트입니다. 결과물의 완성도를 평가하고 개선점을 제안해요. 3가지 bullet point로 정리해줘요.',
+              messages: [{ role: 'user', content: `다음 결과물을 검토해줘요\n\n${fullText}` }],
             })
             const verifyText = verifyRes.content[0].type === 'text' ? verifyRes.content[0].text : ''
             send({ type: 'verify_result', text: verifyText })
