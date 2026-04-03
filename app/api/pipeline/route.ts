@@ -4,17 +4,19 @@ import { AGENTS, ROUTER_SYSTEM_PROMPT, type AgentId } from '@/lib/agents'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// ✅ Notion REST API 도구 정의
+// ══════════════════════════════════════════
+//  NOTION 도구
+// ══════════════════════════════════════════
 const NOTION_TOOLS: Anthropic.Tool[] = [
   {
     name: 'notion_create_page',
-    description: 'Notion 워크스페이스에 새 페이지를 생성합니다. 업무 기록, 보고서, 메모 등을 저장할 때 사용하세요. 항상 정해진 양식대로 모든 필드를 채워서 저장하세요.',
+    description: 'Notion에 새 페이지를 생성합니다. 항상 정해진 양식대로 모든 필드를 채워서 저장하세요.',
     input_schema: {
       type: 'object',
       properties: {
         title:     { type: 'string', description: '페이지 제목' },
-        content:   { type: 'string', description: '상세 내용 (전체 내용)' },
-        team:      { type: 'string', description: '담당팀 이름 (예: 운영 팀, 웹 팀)' },
+        content:   { type: 'string', description: '상세 내용' },
+        team:      { type: 'string', description: '담당팀 이름' },
         task:      { type: 'string', description: '업무 내용 요약 (한 문장)' },
         summary:   { type: 'string', description: '전체 요약 (2~3문장)' },
         result:    { type: 'string', description: '결과 또는 산출물' },
@@ -49,51 +51,37 @@ const NOTION_TOOLS: Anthropic.Tool[] = [
   },
 ]
 
-// ✅ Notion API 실제 호출
 async function callNotionAPI(toolName: string, input: Record<string, string>): Promise<string> {
   const key = process.env.NOTION_API_KEY
   if (!key) return JSON.stringify({ error: 'NOTION_API_KEY가 설정되지 않았어요' })
-
   const headers: Record<string, string> = {
     'Authorization': `Bearer ${key}`,
     'Content-Type': 'application/json',
     'Notion-Version': '2022-06-28',
   }
-
   try {
     if (toolName === 'notion_create_page') {
       const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
       const blocks = [
-        // 구분선
         { object: 'block', type: 'divider', divider: {} },
-        // 날짜
         { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '📅 날짜' } }] } },
         { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: today } }] } },
-        // 담당팀
         { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '👥 담당팀' } }] } },
-        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.team || '운영 팀' } }] } },
-        // 업무내용
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.team || '미정' } }] } },
         { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '📋 업무 내용' } }] } },
         { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.task || input.content } }] } },
-        // 요약
         { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '💡 요약' } }] } },
-        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.summary || input.content.slice(0, 100) + '...' } }] } },
-        // 상세내용
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.summary || input.content.slice(0, 100) } }] } },
         { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '📝 상세 내용' } }] } },
         { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.content } }] } },
-        // 결과
         { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '✅ 결과' } }] } },
         { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.result || '작성 중' } }] } },
-        // 상태
         { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '🔄 상태' } }] } },
-        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.status || '진행중' }, annotations: { color: 'yellow' } }] } },
-        // 다음단계
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.status || '진행중' } }] } },
         { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '🚀 다음 단계' } }] } },
         { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.next_step || '미정' } }] } },
-        // 하단 구분선
         { object: 'block', type: 'divider', divider: {} },
       ]
-
       const res = await fetch('https://api.notion.com/v1/pages', {
         method: 'POST', headers,
         body: JSON.stringify({
@@ -104,9 +92,8 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
       })
       const data = await res.json()
       if (data.object === 'error') return JSON.stringify({ error: data.message })
-      return JSON.stringify({ success: true, page_id: data.id, url: data.url, message: `✅ "${input.title}" 페이지가 Notion에 생성됐어요! 링크: ${data.url}` })
+      return JSON.stringify({ success: true, page_id: data.id, url: data.url, message: `✅ "${input.title}" 페이지가 Notion에 생성됐어요!` })
     }
-
     if (toolName === 'notion_search') {
       const res = await fetch('https://api.notion.com/v1/search', {
         method: 'POST', headers,
@@ -122,37 +109,34 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
       })
       return JSON.stringify({ results })
     }
-
     if (toolName === 'notion_append_to_page') {
       const res = await fetch(`https://api.notion.com/v1/blocks/${input.page_id}/children`, {
         method: 'PATCH', headers,
         body: JSON.stringify({
-          children: [{
-            object: 'block', type: 'paragraph',
-            paragraph: { rich_text: [{ type: 'text', text: { content: input.content } }] }
-          }]
+          children: [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.content } }] } }]
         }),
       })
       const data = await res.json()
       if (data.object === 'error') return JSON.stringify({ error: data.message })
       return JSON.stringify({ success: true, message: '✅ Notion 페이지에 내용을 추가했어요!' })
     }
-
     return JSON.stringify({ error: '알 수 없는 도구' })
   } catch (err) {
     return JSON.stringify({ error: String(err) })
   }
 }
 
-// ✅ Figma REST API 도구 정의
+// ══════════════════════════════════════════
+//  FIGMA 도구
+// ══════════════════════════════════════════
 const FIGMA_TOOLS: Anthropic.Tool[] = [
   {
     name: 'figma_get_file',
-    description: 'Figma 파일의 디자인 정보를 가져옵니다. 파일 URL이나 파일 키를 입력하세요.',
+    description: 'Figma 파일의 디자인 정보를 가져옵니다.',
     input_schema: {
       type: 'object',
       properties: {
-        file_key: { type: 'string', description: 'Figma 파일 키 (URL에서 /file/ 뒤에 오는 문자열)' },
+        file_key: { type: 'string', description: 'Figma 파일 키' },
       },
       required: ['file_key'],
     },
@@ -182,27 +166,22 @@ const FIGMA_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'figma_list_files',
-    description: '내 Figma 프로젝트의 파일 목록을 가져옵니다.',
+    description: '내 Figma 계정 정보를 확인합니다.',
     input_schema: {
       type: 'object',
-      properties: {
-        team_id: { type: 'string', description: 'Figma 팀 ID (선택사항)' },
-      },
+      properties: {},
       required: [],
     },
   },
 ]
 
-// ✅ Figma API 실제 호출
 async function callFigmaAPI(toolName: string, input: Record<string, string>): Promise<string> {
   const token = process.env.FIGMA_ACCESS_TOKEN
   if (!token) return JSON.stringify({ error: 'FIGMA_ACCESS_TOKEN이 설정되지 않았어요' })
-
   const headers: Record<string, string> = {
     'X-Figma-Token': token,
     'Content-Type': 'application/json',
   }
-
   try {
     if (toolName === 'figma_get_file') {
       const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}`, { headers })
@@ -216,7 +195,6 @@ async function callFigmaAPI(toolName: string, input: Record<string, string>): Pr
         message: `✅ Figma 파일 "${data.name}" 정보를 가져왔어요!`
       })
     }
-
     if (toolName === 'figma_get_comments') {
       const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}/comments`, { headers })
       const data = await res.json()
@@ -228,7 +206,6 @@ async function callFigmaAPI(toolName: string, input: Record<string, string>): Pr
         }))
       })
     }
-
     if (toolName === 'figma_post_comment') {
       const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}/comments`, {
         method: 'POST', headers,
@@ -238,25 +215,29 @@ async function callFigmaAPI(toolName: string, input: Record<string, string>): Pr
       if (data.err) return JSON.stringify({ error: data.err })
       return JSON.stringify({ success: true, message: `✅ Figma에 댓글을 달았어요: "${input.message}"` })
     }
-
     if (toolName === 'figma_list_files') {
       const res = await fetch('https://api.figma.com/v1/me', { headers })
       const me = await res.json()
       return JSON.stringify({ success: true, user: me.email, handle: me.handle, message: `✅ Figma 계정 (${me.email}) 연결 확인됐어요!` })
     }
-
     return JSON.stringify({ error: '알 수 없는 도구' })
   } catch (err) {
     return JSON.stringify({ error: String(err) })
   }
 }
 
-// ✅ GitHub REST API 도구 정의
+// ══════════════════════════════════════════
+//  GITHUB 도구
+// ══════════════════════════════════════════
 const GITHUB_TOOLS: Anthropic.Tool[] = [
   {
     name: 'github_list_repos',
     description: '내 GitHub 저장소 목록을 가져옵니다.',
-    input_schema: { type: 'object', properties: {}, required: [] },
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
   },
   {
     name: 'github_list_issues',
@@ -275,7 +256,7 @@ const GITHUB_TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        repo:  { type: 'string', description: '저장소 이름 (예: ryeoeun-ai-studio)' },
+        repo:  { type: 'string', description: '저장소 이름' },
         title: { type: 'string', description: '이슈 제목' },
         body:  { type: 'string', description: '이슈 내용' },
       },
@@ -288,30 +269,25 @@ const GITHUB_TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        repo: { type: 'string', description: '저장소 이름 (예: ryeoeun-ai-studio)' },
+        repo: { type: 'string', description: '저장소 이름' },
       },
       required: ['repo'],
     },
   },
 ]
 
-// ✅ GitHub API 실제 호출
 async function callGitHubAPI(toolName: string, input: Record<string, string>): Promise<string> {
   const token = process.env.GITHUB_TOKEN
   if (!token) return JSON.stringify({ error: 'GITHUB_TOKEN이 설정되지 않았어요' })
-
   const headers: Record<string, string> = {
     'Authorization': `token ${token}`,
     'Accept': 'application/vnd.github.v3+json',
     'Content-Type': 'application/json',
   }
-
   try {
-    // 내 GitHub 사용자 정보 가져오기
     const meRes = await fetch('https://api.github.com/user', { headers })
     const me = await meRes.json()
     const owner = me.login
-
     if (toolName === 'github_list_repos') {
       const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=10', { headers })
       const data = await res.json()
@@ -323,7 +299,6 @@ async function callGitHubAPI(toolName: string, input: Record<string, string>): P
         message: `✅ GitHub 저장소 ${data.length}개를 가져왔어요!`
       })
     }
-
     if (toolName === 'github_list_issues') {
       const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/issues?state=open&per_page=10`, { headers })
       const data = await res.json()
@@ -336,7 +311,6 @@ async function callGitHubAPI(toolName: string, input: Record<string, string>): P
         message: `✅ 이슈 ${data.length}개를 가져왔어요!`
       })
     }
-
     if (toolName === 'github_create_issue') {
       const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/issues`, {
         method: 'POST', headers,
@@ -351,7 +325,6 @@ async function callGitHubAPI(toolName: string, input: Record<string, string>): P
         message: `✅ 이슈 #${data.number} "${input.title}"이 생성됐어요! 링크: ${data.html_url}`
       })
     }
-
     if (toolName === 'github_list_commits') {
       const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/commits?per_page=10`, { headers })
       const data = await res.json()
@@ -364,29 +337,23 @@ async function callGitHubAPI(toolName: string, input: Record<string, string>): P
         message: `✅ 최근 커밋 ${data.length}개를 가져왔어요!`
       })
     }
-
     return JSON.stringify({ error: '알 수 없는 도구' })
   } catch (err) {
     return JSON.stringify({ error: String(err) })
   }
 }
 
-function hasGitHubForTeam(teamId: string, mcpEnabled: Record<string, boolean>, mcpTeams: Record<string, string[]>): boolean {
-  if (!mcpEnabled['github']) return false
-  const teams = mcpTeams['github'] || []
-  return teams.includes(teamId)
-}
-  if (!mcpEnabled['notion']) return false
-  const teams = mcpTeams['notion'] || []
-  return teams.includes(teamId)
+// ══════════════════════════════════════════
+//  팀별 도구 연결 확인
+// ══════════════════════════════════════════
+function hasToolForTeam(toolId: string, teamId: string, mcpEnabled: Record<string, boolean>, mcpTeams: Record<string, string[]>): boolean {
+  if (!mcpEnabled[toolId]) return false
+  return (mcpTeams[toolId] || []).includes(teamId)
 }
 
-function hasFigmaForTeam(teamId: string, mcpEnabled: Record<string, boolean>, mcpTeams: Record<string, string[]>): boolean {
-  if (!mcpEnabled['figma']) return false
-  const teams = mcpTeams['figma'] || []
-  return teams.includes(teamId)
-}
-
+// ══════════════════════════════════════════
+//  MAIN PIPELINE
+// ══════════════════════════════════════════
 export async function POST(req: Request) {
   const {
     message,
@@ -428,7 +395,6 @@ export async function POST(req: Request) {
             const teamList = workingAgentIds.join(', ')
             const dynamicRouterPrompt = ROUTER_SYSTEM_PROMPT +
               `\n\n반드시 다음 목록에서만 팀을 선택하세요(router 제외): ${teamList}\n총괄실장(router)은 절대 선택하지 말고, 항상 다른 팀으로 라우팅하세요.`
-
             try {
               const routerRes = await anthropic.messages.create({
                 model: teamModels['router'] ?? 'claude-haiku-4-5-20251001',
@@ -453,9 +419,10 @@ export async function POST(req: Request) {
 
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
-          const useNotion = hasNotionForTeam(targetAgentId, mcpEnabled, mcpTeams)
-          const useFigma  = hasFigmaForTeam(targetAgentId, mcpEnabled, mcpTeams)
-          const useGitHub = hasGitHubForTeam(targetAgentId, mcpEnabled, mcpTeams)
+
+          const useNotion = hasToolForTeam('notion', targetAgentId, mcpEnabled, mcpTeams)
+          const useFigma  = hasToolForTeam('figma',  targetAgentId, mcpEnabled, mcpTeams)
+          const useGitHub = hasToolForTeam('github', targetAgentId, mcpEnabled, mcpTeams)
           const tools = [
             ...(useNotion ? NOTION_TOOLS : []),
             ...(useFigma  ? FIGMA_TOOLS  : []),
@@ -476,7 +443,6 @@ export async function POST(req: Request) {
           const taskWithContext = injectContext(step, prevResult)
 
           if (tools.length > 0) {
-            // ✅ Notion 도구 사용 - tool_use 루프
             const messages: Anthropic.MessageParam[] = [
               { role: 'user', content: taskWithContext }
             ]
@@ -501,15 +467,16 @@ export async function POST(req: Request) {
                 const toolResults: Anthropic.ToolResultBlockParam[] = []
                 for (const block of res.content) {
                   if (block.type !== 'tool_use') continue
-                  const isFigmaTool  = block.name.startsWith('figma_')
-                  const isGitHubTool = block.name.startsWith('github_')
-                  const toolLabel = isFigmaTool ? 'Figma' : isGitHubTool ? 'GitHub' : 'Notion'
-                  send({ type: 'text', text: `\n🔧 ${toolLabel} ${block.name} 실행 중...\n`, step: i + 1 })
-                  const result = isFigmaTool
-                    ? await callFigmaAPI(block.name, block.input as Record<string, string>)
-                    : isGitHubTool
-                    ? await callGitHubAPI(block.name, block.input as Record<string, string>)
-                    : await callNotionAPI(block.name, block.input as Record<string, string>)
+                  const isNotion = block.name.startsWith('notion_')
+                  const isFigma  = block.name.startsWith('figma_')
+                  const isGitHub = block.name.startsWith('github_')
+                  const label = isNotion ? 'Notion' : isFigma ? 'Figma' : isGitHub ? 'GitHub' : '도구'
+                  send({ type: 'text', text: `\n🔧 ${label} ${block.name} 실행 중...\n`, step: i + 1 })
+                  let result = ''
+                  if (isNotion) result = await callNotionAPI(block.name, block.input as Record<string, string>)
+                  else if (isFigma) result = await callFigmaAPI(block.name, block.input as Record<string, string>)
+                  else if (isGitHub) result = await callGitHubAPI(block.name, block.input as Record<string, string>)
+                  else result = JSON.stringify({ error: '알 수 없는 도구' })
                   const parsed = JSON.parse(result)
                   if (parsed.message) {
                     send({ type: 'text', text: parsed.message + '\n', step: i + 1 })
@@ -526,7 +493,6 @@ export async function POST(req: Request) {
             prevResult = fullText
 
           } else {
-            // ✅ 일반 스트리밍
             const stream = await anthropic.messages.stream({
               model, max_tokens: 4096,
               system: agent.systemPrompt,
