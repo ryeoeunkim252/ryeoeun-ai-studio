@@ -11,8 +11,7 @@ const NOTION_TOOLS: Anthropic.Tool[] = [
   {
     name: 'notion_create_page',
     description: 'Notion에 새 페이지를 생성합니다. 항상 정해진 양식대로 모든 필드를 채워서 저장하세요.',
-    input_schema: {h
-      type: 'object',
+    input_schema: {{      type: 'object',
       properties: {
         title:     { type: 'string', description: '페이지 제목' },
         content:   { type: 'string', description: '상세 내용' },
