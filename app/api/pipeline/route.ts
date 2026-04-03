@@ -8,12 +8,18 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const NOTION_TOOLS: Anthropic.Tool[] = [
   {
     name: 'notion_create_page',
-    description: 'Notion 워크스페이스에 새 페이지를 생성합니다. 업무 기록, 보고서, 메모 등을 저장할 때 사용하세요.',
+    description: 'Notion 워크스페이스에 새 페이지를 생성합니다. 업무 기록, 보고서, 메모 등을 저장할 때 사용하세요. 항상 정해진 양식대로 모든 필드를 채워서 저장하세요.',
     input_schema: {
       type: 'object',
       properties: {
-        title: { type: 'string', description: '페이지 제목' },
-        content: { type: 'string', description: '페이지 내용' },
+        title:     { type: 'string', description: '페이지 제목' },
+        content:   { type: 'string', description: '상세 내용 (전체 내용)' },
+        team:      { type: 'string', description: '담당팀 이름 (예: 운영 팀, 웹 팀)' },
+        task:      { type: 'string', description: '업무 내용 요약 (한 문장)' },
+        summary:   { type: 'string', description: '전체 요약 (2~3문장)' },
+        result:    { type: 'string', description: '결과 또는 산출물' },
+        status:    { type: 'string', description: '상태: 완료 / 진행중 / 대기중' },
+        next_step: { type: 'string', description: '다음 단계 또는 후속 조치' },
       },
       required: ['title', 'content'],
     },
@@ -56,15 +62,44 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
 
   try {
     if (toolName === 'notion_create_page') {
+      const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
+      const blocks = [
+        // 구분선
+        { object: 'block', type: 'divider', divider: {} },
+        // 날짜
+        { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '📅 날짜' } }] } },
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: today } }] } },
+        // 담당팀
+        { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '👥 담당팀' } }] } },
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.team || '운영 팀' } }] } },
+        // 업무내용
+        { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '📋 업무 내용' } }] } },
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.task || input.content } }] } },
+        // 요약
+        { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '💡 요약' } }] } },
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.summary || input.content.slice(0, 100) + '...' } }] } },
+        // 상세내용
+        { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '📝 상세 내용' } }] } },
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.content } }] } },
+        // 결과
+        { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '✅ 결과' } }] } },
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.result || '작성 중' } }] } },
+        // 상태
+        { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '🔄 상태' } }] } },
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.status || '진행중' }, annotations: { color: 'yellow' } }] } },
+        // 다음단계
+        { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '🚀 다음 단계' } }] } },
+        { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.next_step || '미정' } }] } },
+        // 하단 구분선
+        { object: 'block', type: 'divider', divider: {} },
+      ]
+
       const res = await fetch('https://api.notion.com/v1/pages', {
         method: 'POST', headers,
         body: JSON.stringify({
           parent: { type: 'page_id', page_id: '3379d3b60d6180d1a64bc5c9e3f00fa9' },
           properties: { title: { title: [{ text: { content: input.title } }] } },
-          children: [{
-            object: 'block', type: 'paragraph',
-            paragraph: { rich_text: [{ type: 'text', text: { content: input.content } }] }
-          }]
+          children: blocks,
         }),
       })
       const data = await res.json()
