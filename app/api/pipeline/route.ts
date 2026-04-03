@@ -144,9 +144,122 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
   }
 }
 
+// ✅ Figma REST API 도구 정의
+const FIGMA_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'figma_get_file',
+    description: 'Figma 파일의 디자인 정보를 가져옵니다. 파일 URL이나 파일 키를 입력하세요.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file_key: { type: 'string', description: 'Figma 파일 키 (URL에서 /file/ 뒤에 오는 문자열)' },
+      },
+      required: ['file_key'],
+    },
+  },
+  {
+    name: 'figma_get_comments',
+    description: 'Figma 파일의 댓글 목록을 가져옵니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file_key: { type: 'string', description: 'Figma 파일 키' },
+      },
+      required: ['file_key'],
+    },
+  },
+  {
+    name: 'figma_post_comment',
+    description: 'Figma 파일에 댓글을 추가합니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file_key: { type: 'string', description: 'Figma 파일 키' },
+        message:  { type: 'string', description: '댓글 내용' },
+      },
+      required: ['file_key', 'message'],
+    },
+  },
+  {
+    name: 'figma_list_files',
+    description: '내 Figma 프로젝트의 파일 목록을 가져옵니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        team_id: { type: 'string', description: 'Figma 팀 ID (선택사항)' },
+      },
+      required: [],
+    },
+  },
+]
+
+// ✅ Figma API 실제 호출
+async function callFigmaAPI(toolName: string, input: Record<string, string>): Promise<string> {
+  const token = process.env.FIGMA_ACCESS_TOKEN
+  if (!token) return JSON.stringify({ error: 'FIGMA_ACCESS_TOKEN이 설정되지 않았어요' })
+
+  const headers: Record<string, string> = {
+    'X-Figma-Token': token,
+    'Content-Type': 'application/json',
+  }
+
+  try {
+    if (toolName === 'figma_get_file') {
+      const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}`, { headers })
+      const data = await res.json()
+      if (data.err) return JSON.stringify({ error: data.err })
+      return JSON.stringify({
+        success: true,
+        name: data.name,
+        lastModified: data.lastModified,
+        pages: data.document?.children?.map((p: {id:string; name:string}) => ({ id: p.id, name: p.name })),
+        message: `✅ Figma 파일 "${data.name}" 정보를 가져왔어요!`
+      })
+    }
+
+    if (toolName === 'figma_get_comments') {
+      const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}/comments`, { headers })
+      const data = await res.json()
+      if (data.err) return JSON.stringify({ error: data.err })
+      return JSON.stringify({
+        success: true,
+        comments: data.comments?.slice(0, 10).map((c: {id:string; message:string; user:{handle:string}}) => ({
+          id: c.id, message: c.message, author: c.user?.handle
+        }))
+      })
+    }
+
+    if (toolName === 'figma_post_comment') {
+      const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}/comments`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ message: input.message }),
+      })
+      const data = await res.json()
+      if (data.err) return JSON.stringify({ error: data.err })
+      return JSON.stringify({ success: true, message: `✅ Figma에 댓글을 달았어요: "${input.message}"` })
+    }
+
+    if (toolName === 'figma_list_files') {
+      const res = await fetch('https://api.figma.com/v1/me', { headers })
+      const me = await res.json()
+      return JSON.stringify({ success: true, user: me.email, handle: me.handle, message: `✅ Figma 계정 (${me.email}) 연결 확인됐어요!` })
+    }
+
+    return JSON.stringify({ error: '알 수 없는 도구' })
+  } catch (err) {
+    return JSON.stringify({ error: String(err) })
+  }
+}
+
 function hasNotionForTeam(teamId: string, mcpEnabled: Record<string, boolean>, mcpTeams: Record<string, string[]>): boolean {
   if (!mcpEnabled['notion']) return false
   const teams = mcpTeams['notion'] || []
+  return teams.includes(teamId)
+}
+
+function hasFigmaForTeam(teamId: string, mcpEnabled: Record<string, boolean>, mcpTeams: Record<string, string[]>): boolean {
+  if (!mcpEnabled['figma']) return false
+  const teams = mcpTeams['figma'] || []
   return teams.includes(teamId)
 }
 
@@ -217,12 +330,20 @@ export async function POST(req: Request) {
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
           const useNotion = hasNotionForTeam(targetAgentId, mcpEnabled, mcpTeams)
-          const tools = useNotion ? NOTION_TOOLS : []
+          const useFigma  = hasFigmaForTeam(targetAgentId, mcpEnabled, mcpTeams)
+          const tools = [
+            ...(useNotion ? NOTION_TOOLS : []),
+            ...(useFigma  ? FIGMA_TOOLS  : []),
+          ]
+          const mcpToolNames = [
+            ...(useNotion ? ['Notion'] : []),
+            ...(useFigma  ? ['Figma']  : []),
+          ].join(', ')
 
           send({
             type: 'agent', agentId: agent.id, agentName: agent.name,
             modelName: model, reason: routerReason, step: i + 1,
-            mcpTools: useNotion ? 'Notion' : null,
+            mcpTools: mcpToolNames || null,
           })
 
           const taskWithContext = injectContext(step, prevResult)
@@ -253,9 +374,12 @@ export async function POST(req: Request) {
                 const toolResults: Anthropic.ToolResultBlockParam[] = []
                 for (const block of res.content) {
                   if (block.type !== 'tool_use') continue
-                  send({ type: 'text', text: `\n🔧 Notion ${block.name} 실행 중...\n`, step: i + 1 })
-                  const result = await callNotionAPI(block.name, block.input as Record<string, string>)
-                  const parsed = JSON.parse(result)
+                  const isFigmaTool = block.name.startsWith('figma_')
+                  const toolLabel = isFigmaTool ? 'Figma' : 'Notion'
+                  send({ type: 'text', text: `\n🔧 ${toolLabel} ${block.name} 실행 중...\n`, step: i + 1 })
+                  const result = isFigmaTool
+                    ? await callFigmaAPI(block.name, block.input as Record<string, string>)
+                    : await callNotionAPI(block.name, block.input as Record<string, string>)                  const parsed = JSON.parse(result)
                   if (parsed.message) {
                     send({ type: 'text', text: parsed.message + '\n', step: i + 1 })
                     fullText += parsed.message + '\n'
