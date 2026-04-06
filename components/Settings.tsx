@@ -113,7 +113,25 @@ export default function Settings() {
     MCPS.forEach(mcp => { initMcp[mcp.id] = savedMcpTeams[mcp.id] ?? mcp.defaultTeams })
     setMcpTeams(initMcp)
     const cts = loadData<CustomTeam[]>('nk_custom_teams', [])
-    setCustomTeams(cts)
+    // 기본 에이전트 이름과 겹치는 커스텀 팀 자동 제거
+    const DEFAULT_AGENT_NAMES = [
+      '총괄실장', '전략기획실', '전략실장', '전략팀',
+      '콘텐츠팀', '콘텐츠팀장', '콘텐츠본부',
+      '수익화팀', '수익화팀장',
+      '자동화팀', '자동화팀장',
+      '데이터팀', '데이터팀장',
+      '디자인팀', '디자인팀장',
+    ]
+    const DEFAULT_AGENT_IDS = ['router', 'research', 'content', 'web', 'ops', 'edu']
+    const cleanCts = cts.filter(t =>
+      !DEFAULT_AGENT_IDS.includes(t.id) &&
+      !DEFAULT_AGENT_NAMES.includes(t.name)
+    )
+    if (cleanCts.length !== cts.length) {
+      // 지저분한 커스텀 팀 발견 → 즉시 정리 후 저장
+      saveData('nk_custom_teams', cleanCts)
+    }
+    setCustomTeams(cleanCts)
     setTeamRoles(loadData('nk_team_roles', {}))
     setTeamDescs(loadData('nk_team_descs', {}))
     const savedOrder = loadData<string[]>('nk_team_order', [])
