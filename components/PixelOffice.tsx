@@ -75,7 +75,7 @@ const BASE:Omit<AgDef,'seat'>[] = [
 ]
 
 const SEATS:{tc:number;tr:number}[] = [
-  {tc:22, tr:11}, // 비서 (회의실 하단, 소파 위쪽)
+  {tc:23, tr:11}, // 비서 (회의실 하단, 오른쪽 1칸 이동)
   {tc:10, tr:2},  // 총괄실장 (빅데스크 중심, 상단 중앙)
   // 콘텐츠 2x2 - 좌상단, 벽에서 떨어진 cols 2,5
   {tc:2,  tr:2},  // 콘텐츠팀장 (2x2 좌상)
@@ -149,11 +149,11 @@ function buildMap(): TileT[][] {
 
   // ── 장식 화분 (적당히) ───────────────────────────────────────
   m[2][8]=TL.PL;  m[2][14]=TL.PL   // CEO 빅데스크 양쪽
-  m[6][7]=TL.PL                      // 콘텐츠존 오른쪽 끝
+  m[10][6]=TL.PL                     // 노란→ 콘텐츠존 아래 (이동됨)
+  m[9][17]=TL.PL                     // 빨간→ 전략기획실장 아래 복도 (이동됨)
   m[ROWS-2][1]=TL.PL                 // 하단 왼쪽 코너
   m[ROWS-2][10]=TL.PL                // 하단 중앙
   m[ROWS-2][17]=TL.PL                // 하단 오른쪽
-  m[5][17]=TL.PL                     // 전략기획실장 옆
   // ─────────────────────────────────────────────────────────────
 
   // ── 회의실 (테이블 좌우 대칭 정렬) ──────────────────────────
@@ -162,17 +162,19 @@ function buildMap(): TileT[][] {
   // 상단/하단 의자
   m[1][21]=TL.CH; m[1][24]=TL.CH                // 테이블 윗 의자 2개
   m[7][21]=TL.CH; m[7][24]=TL.CH                // 테이블 아래 의자 2개
-  // 좌우 대칭: col 20(왼쪽), col 25(오른쪽) → 테이블과 각 1칸 간격
+  // 좌우 대칭: col 20(왼쪽), col 25(오른쪽)
   m[3][20]=TL.CH; m[4][20]=TL.CH; m[5][20]=TL.CH   // 왼쪽 의자 3개
   m[3][25]=TL.CH; m[4][25]=TL.CH; m[5][25]=TL.CH   // 오른쪽 의자 3개
 
-  // ── 비서 전용 빅 데스크 (회의실 하단) ───────────────────────
-  // 소파 없음! (비서 통로 확보 위해 제거)
-  m[11][21]=TL.BDK; m[11][22]=TL.BDK; m[11][23]=TL.BDK  // 빅 데스크 3칸
-  m[11][24]=TL.MN                                          // 모니터
-  m[12][22]=TL.CH; m[12][23]=TL.CH                        // 의자 2개
-  // 비서 양쪽은 통로 확보 (PL 없음!)
-  m[ROWS-2][22]=TL.PL; m[ROWS-2][24]=TL.PL               // 아래쪽 화분만
+  // 파란→ m[14][20], 초록→ m[14][26] (이동됨)
+  m[ROWS-2][20]=TL.PL; m[ROWS-2][26]=TL.PL
+
+  // ── 비서 전용 빅 데스크 (오른쪽 1칸 이동: cols 22-24) ───────
+  m[11][22]=TL.BDK; m[11][23]=TL.BDK; m[11][24]=TL.BDK  // 빅 데스크 3칸
+  m[11][25]=TL.MN                                          // 모니터
+  m[12][23]=TL.CH; m[12][24]=TL.CH                        // 의자 2개
+  // 비서 양쪽 통로 확보 (PL 없음)
+  m[ROWS-2][23]=TL.PL                                      // 아래 화분 하나만
 
   m[0][3]=TL.FR; m[0][10]=TL.FR; m[0][15]=TL.FR; m[0][22]=TL.FR; m[0][25]=TL.FR
 
@@ -222,8 +224,8 @@ export default function PixelOffice({activeAgentId}:Props){
     mapRef.current=buildMap()
     agRef.current=allDefs.map((def,i)=>{
       const seat=SEATS[i]||SEATS[0]
-      // 비서는 빅 데스크 중심(tc=22), 총괄실장은 빅 데스크 중심(tc=10)
-      const sx = i===0 ? 2+22*TS+TS/2 : i===1 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
+      // 비서는 빅 데스크 중심(tc=23), 총괄실장은 빅 데스크 중심(tc=10)
+      const sx = i===0 ? 2+23*TS+TS/2 : i===1 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
       const sy = 2+(seat.tr+1)*TS+TS/2+4
       const pool=WORK_SAY[def.id]||WORK_SAY.ops
       return{def,x:sx,y:sy,sx,sy,tx:sx,ty:sy,mode:'sit' as AgMode,
