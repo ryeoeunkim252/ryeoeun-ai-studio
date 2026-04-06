@@ -194,7 +194,6 @@ export default function PixelOffice({ activeAgentId, onAgentClick }: PixelOffice
         width={W * scale}
         height={H * scale}
         style={{ display: 'block', margin: '0 auto' }}
-        xmlns="http://www.w3.org/2000/svg"
       >
         {/* ── 배경 그라디언트 ─────────────────────────── */}
         <defs>
@@ -271,19 +270,26 @@ export default function PixelOffice({ activeAgentId, onAgentClick }: PixelOffice
         {/* ── 구역 라벨 (배경 영역) ─────────────────── */}
         {/* 전략기획실 존 */}
         <rect x={90} y={185} width={195} height={210} rx={8}
-          fill="#1d9e75" opacity={0.05} stroke="#1d9e75" strokeWidth={1.5} strokeDasharray="8 5" opacity={0.2} />
+          fill="#1d9e75" fillOpacity={0.05}
+          stroke="#1d9e75" strokeOpacity={0.25}
+          strokeWidth={1.5} strokeDasharray="8 5" />
 
         {/* 수익화팀 존 */}
         <rect x={885} y={135} width={195} height={185} rx={8}
-          fill="#ba7517" opacity={0.05} stroke="#ba7517" strokeWidth={1.5} strokeDasharray="8 5" opacity={0.2} />
+          fill="#ba7517" fillOpacity={0.05}
+          stroke="#ba7517" strokeOpacity={0.25}
+          strokeWidth={1.5} strokeDasharray="8 5" />
 
         {/* 자동화팀 + 데이터팀 하단 존 */}
         <rect x={770} y={415} width={400} height={210} rx={8}
-          fill="#1a2a3a" opacity={0.04} stroke="#378add" strokeWidth={1.5} strokeDasharray="8 5" opacity={0.15} />
+          fill="#1a2a3a" fillOpacity={0.04}
+          stroke="#378add" strokeOpacity={0.2}
+          strokeWidth={1.5} strokeDasharray="8 5" />
 
         {/* ── 총괄실장 자리 (특별 구역) ─────────────── */}
         <rect x={575} y={38} width={230} height={140} rx={10}
-          fill="#c06080" opacity={0.06} stroke="#c06080" strokeWidth={2} opacity={0.2} />
+          fill="#c06080" fillOpacity={0.06}
+          stroke="#c06080" strokeOpacity={0.25} strokeWidth={2} />
         <text x={690} y={54} textAnchor="middle" fill="#c06080" fontSize={10} fontWeight="600"
           fontFamily="Pretendard, sans-serif" opacity={0.7}>👑 CEO 직속</text>
 
