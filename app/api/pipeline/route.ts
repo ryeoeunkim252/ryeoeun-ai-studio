@@ -628,7 +628,13 @@ export async function POST(req: Request) {
             mcpTools: mcpToolNames || null,
           })
 
-          const taskWithContext = injectContext(step, prevResult)
+          // ✅ 현재 KST 날짜/시간 주입
+          const now = new Date()
+          const kstOffset = 9 * 60 * 60 * 1000
+          const kst = new Date(now.getTime() + kstOffset)
+          const currentDateTime = kst.toISOString().replace('T', ' ').slice(0, 19)
+          const datePrefix = `[현재 날짜/시간 KST: ${currentDateTime}] 이 날짜를 기준으로 "이번주", "오늘", "내일", "다음주" 등을 정확히 계산하세요.\n\n`
+          const taskWithContext = datePrefix + injectContext(step, prevResult)
 
           if (tools.length > 0) {
             const messages: Anthropic.MessageParam[] = [
