@@ -113,11 +113,11 @@ export default function Home() {
       const stored = loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS)
       const FORCED_NAMES: Record<string, string> = {
         router:   '총괄실장',
-        research: '전략기획실',
-        content:  '콘텐츠팀',
+        research: '전략기획실장',
+        content:  '콘텐츠팀장',
         web:      '수익화팀',
         ops:      '자동화팀',
-        edu:      '데이터팀',   // ← 이게 핵심! 항상 데이터팀으로 강제
+        edu:      '데이터팀',
       }
       const forcedSettings = {
         ...stored,

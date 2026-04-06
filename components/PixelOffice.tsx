@@ -57,32 +57,33 @@ interface AgDef {
 // ══════════════════════════════════════════════════════════
 
 const BASE:Omit<AgDef,'seat'>[] = [
-  // 총괄실장 - CEO, 상단 중앙 빅 데스크, 아래 바라봄
-  {id:'router',          name:'총괄실장',   sitDir:'d', hair:'#18103a',skin:'#f4c890',shirt:'#1e3a6a',pants:'#0f1f38',shoes:'#08080e',accent:'#ff7070'},
-  // 콘텐츠팀 4명 - 왼쪽 벽, 오른쪽(사무실 중앙) 바라봄
-  {id:'content',         name:'콘텐츠팀장', sitDir:'r', hair:'#b03878',skin:'#fad7a0',shirt:'#7830a8',pants:'#3a1048',shoes:'#1e0818',accent:'#ff70b8'},
-  {id:'content_plan',    name:'기획팀',     sitDir:'r', hair:'#c87038',skin:'#fde3a7',shirt:'#c84028',pants:'#480808',shoes:'#180808',accent:'#ffb060'},
-  {id:'content_design',  name:'디자인팀',   sitDir:'r', hair:'#e0c048',skin:'#f8d8b0',shirt:'#b82830',pants:'#280810',shoes:'#100808',accent:'#ff9060'},
-  {id:'content_channel', name:'채널운영팀', sitDir:'r', hair:'#203868',skin:'#f5c8a0',shirt:'#c06020',pants:'#381808',shoes:'#140808',accent:'#ffd070'},
-  // 나머지 4팀 - 오른쪽 영역 배치
-  {id:'research',        name:'전략기획실', sitDir:'d', hair:'#283818',skin:'#f0c896',shirt:'#207840',pants:'#0e3a18',shoes:'#081008',accent:'#60e880'},
-  {id:'web',             name:'수익화팀',   sitDir:'d', hair:'#0a90b0',skin:'#fde3a7',shirt:'#1a70c0',pants:'#112248',shoes:'#0e1826',accent:'#60bfff'},
-  {id:'ops',             name:'자동화팀',   sitDir:'d', hair:'#080808',skin:'#c07848',shirt:'#1e3848',pants:'#101820',shoes:'#060808',accent:'#60e0e0'},
-  {id:'edu',             name:'데이터팀',   sitDir:'d', hair:'#080808',skin:'#fde8d0',shirt:'#c04820',pants:'#481808',shoes:'#180808',accent:'#ffb060'},
+  // 총괄실장 - 상단 중앙 빅 데스크
+  {id:'router',          name:'총괄실장',    sitDir:'d', hair:'#18103a',skin:'#f4c890',shirt:'#1e3a6a',pants:'#0f1f38',shoes:'#08080e',accent:'#ff7070'},
+  // 콘텐츠팀 4명 - 좌상단 2x2 배치, 아래 바라봄
+  {id:'content',         name:'콘텐츠팀장',  sitDir:'d', hair:'#b03878',skin:'#fad7a0',shirt:'#7830a8',pants:'#3a1048',shoes:'#1e0818',accent:'#ff70b8'},
+  {id:'content_plan',    name:'기획팀',      sitDir:'d', hair:'#c87038',skin:'#fde3a7',shirt:'#c84028',pants:'#480808',shoes:'#180808',accent:'#ffb060'},
+  {id:'content_design',  name:'디자인팀',    sitDir:'d', hair:'#e0c048',skin:'#f8d8b0',shirt:'#b82830',pants:'#280810',shoes:'#100808',accent:'#ff9060'},
+  {id:'content_channel', name:'채널운영팀',  sitDir:'d', hair:'#203868',skin:'#f5c8a0',shirt:'#c06020',pants:'#381808',shoes:'#140808',accent:'#ffd070'},
+  // 전략기획실장 - 총괄실장 오른쪽
+  {id:'research',        name:'전략기획실장',sitDir:'d', hair:'#283818',skin:'#f0c896',shirt:'#207840',pants:'#0e3a18',shoes:'#081008',accent:'#60e880'},
+  // 하단 3팀 - 왼쪽부터
+  {id:'web',             name:'수익화팀',    sitDir:'d', hair:'#0a90b0',skin:'#fde3a7',shirt:'#1a70c0',pants:'#112248',shoes:'#0e1826',accent:'#60bfff'},
+  {id:'ops',             name:'자동화팀',    sitDir:'d', hair:'#080808',skin:'#c07848',shirt:'#1e3848',pants:'#101820',shoes:'#060808',accent:'#60e0e0'},
+  {id:'edu',             name:'데이터팀',    sitDir:'d', hair:'#080808',skin:'#fde8d0',shirt:'#c04820',pants:'#481808',shoes:'#180808',accent:'#ffb060'},
 ]
 
 const SEATS:{tc:number;tr:number}[] = [
-  {tc:10, tr:2},  // 총괄실장 - 상단 중앙 (빅 데스크 중심점)
-  // 콘텐츠 4명 - 왼쪽 벽 (cols 1-2)
-  {tc:1,  tr:2},  // 콘텐츠팀장
-  {tc:1,  tr:5},  // 기획팀
-  {tc:1,  tr:8},  // 디자인팀
-  {tc:1,  tr:11}, // 채널운영팀
-  // 나머지 4팀 - 우측 영역 자유 배치
-  {tc:6,  tr:2},  // 전략기획실 (좌측 중단)
-  {tc:14, tr:2},  // 수익화팀 (우측 상단)
-  {tc:6,  tr:9},  // 자동화팀 (좌측 하단)
-  {tc:14, tr:9},  // 데이터팀 (우측 하단)
+  {tc:10, tr:2},  // 총괄실장 (빅데스크 중심, 상단 중앙)
+  // 콘텐츠 2x2 - 좌상단, 벽에서 떨어진 cols 2,5
+  {tc:2,  tr:2},  // 콘텐츠팀장 (2x2 좌상)
+  {tc:5,  tr:2},  // 기획팀 (2x2 우상)
+  {tc:2,  tr:5},  // 디자인팀 (2x2 좌하)
+  {tc:5,  tr:5},  // 채널운영팀 (2x2 우하)
+  {tc:16, tr:2},  // 전략기획실장 (총괄실장 오른쪽)
+  // 하단 3팀 - 왼쪽부터
+  {tc:4,  tr:11}, // 수익화팀
+  {tc:9,  tr:11}, // 자동화팀
+  {tc:14, tr:11}, // 데이터팀
 ]
 
 const MEET_SEATS = [
@@ -100,45 +101,51 @@ function buildMap(agents:AgDef[]): TileT[][] {
   // 칸막이 (col 19, 문: row 6,7)
   for(let r=1;r<ROWS-1;r++) m[r][19]=r===6||r===7?TL.DOOR:TL.DIV
 
-  // 책장 (상단 벽, 콘텐츠존 제외)
-  for(let c=4;c<19;c++) m[1][c]=TL.SH
-  m[0][11]=TL.CLK
+  // 책장 (상단 벽, 콘텐츠존 오른쪽부터)
+  for(let c=8;c<19;c++) m[1][c]=TL.SH
+  m[0][12]=TL.CLK
 
-  // ── 콘텐츠존 바닥 (왼쪽 벽, cols 1-3, rows 2-13) ──
-  for(let r=2;r<=13;r++) for(let c=1;c<=3;c++) m[r][c]=TL.CF
+  // ── 콘텐츠존 바닥 (좌상단 2x2, 벽에서 떨어짐: cols 1-7, rows 2-8) ──
+  for(let r=2;r<=8;r++) for(let c=1;c<=7;c++) m[r][c]=TL.CF
 
-  // 카펫 복도
-  for(let c=4;c<19;c++) m[7][c]=TL.CP
-  for(let c=4;c<19;c++) m[13][c]=TL.CP
+  // 카펫 복도 (row 9, row 13 - 걷기 통로)
+  for(let c=1;c<19;c++){
+    if(m[9][c]!==TL.CF) m[9][c]=TL.CP
+    m[13][c]=TL.CP
+  }
 
   // ── 총괄실장 빅 데스크 (cols 9-12, row 2) ──
-  // BDK 타일로 넓게 배치 (4칸 너비!)
-  m[2][8]=TL.BDK; m[2][9]=TL.BDK; m[2][10]=TL.BDK; m[2][11]=TL.BDK
-  m[2][12]=TL.MN  // 모니터
-  m[3][9]=TL.CH; m[3][10]=TL.CH  // 빅 의자 2개
+  m[2][9]=TL.BDK; m[2][10]=TL.BDK; m[2][11]=TL.BDK; m[2][12]=TL.BDK
+  m[2][13]=TL.MN  // 모니터
+  m[3][10]=TL.CH; m[3][11]=TL.CH   // 빅 의자 2개
 
-  // 나머지 팀 책상 (총괄실장 제외, 콘텐츠팀 제외 - 인덱스 1~4)
-  agents.forEach((ag,i)=>{
-    if(i===0) return  // 총괄실장 skip (이미 위에서 처리)
-    if(i>=1&&i<=4){
-      // 콘텐츠팀 4명 - 왼쪽 벽 배치
-      const s=SEATS[i]
-      m[s.tr][s.tc]=TL.DK
-      if(s.tc+2<COLS) m[s.tr][s.tc+1]=TL.MN  // 모니터 오른쪽
-      if(s.tr+1<ROWS-2) m[s.tr+1][s.tc]=TL.CH
-      return
-    }
-    const s=SEATS[i]; if(!s||s.tr>=ROWS-2) return
+  // 총괄실장 양쪽 화분
+  m[2][8]=TL.PL; m[2][14]=TL.PL
+
+  // ── 콘텐츠팀 2x2 책상 (buildMap에서 직접 배치) ──
+  // 콘텐츠팀장 (tc=2, tr=2), 기획팀 (tc=5, tr=2)
+  // 디자인팀 (tc=2, tr=5), 채널운영팀 (tc=5, tr=5)
+  const contentSeats=[{tc:2,tr:2},{tc:5,tr:2},{tc:2,tr:5},{tc:5,tr:5}]
+  contentSeats.forEach(s=>{
+    m[s.tr][s.tc]=TL.DK
+    m[s.tr][s.tc+1]=TL.MN
+    if(s.tr+1<ROWS-2) m[s.tr+1][s.tc]=TL.CH
+  })
+
+  // ── 전략기획실장 (tc=16, tr=2) ──
+  m[2][16]=TL.DK; m[2][17]=TL.MN; m[3][16]=TL.CH
+
+  // ── 하단 3팀 ──
+  // 수익화팀 (tc=4, tr=11), 자동화팀 (tc=9, tr=11), 데이터팀 (tc=14, tr=11)
+  [{tc:4,tr:11},{tc:9,tr:11},{tc:14,tr:11}].forEach(s=>{
     m[s.tr][s.tc]=TL.DK
     if(s.tc+1<19) m[s.tr][s.tc+1]=TL.MN
     if(s.tr+1<ROWS-2) m[s.tr+1][s.tc]=TL.CH
   })
 
   // 장식 화분
-  m[ROWS-2][1]=TL.PL; m[ROWS-2][5]=TL.PL; m[ROWS-2][10]=TL.PL; m[ROWS-2][15]=TL.PL
-  m[2][17]=TL.PL; m[9][17]=TL.PL
-  // 총괄실장 양쪽 화분
-  m[2][7]=TL.PL; m[2][13]=TL.PL
+  m[ROWS-2][1]=TL.PL; m[ROWS-2][7]=TL.PL; m[ROWS-2][12]=TL.PL; m[ROWS-2][17]=TL.PL
+  m[11][17]=TL.PL; m[11][7]=TL.PL
 
   // 회의실
   m[1][20]=TL.TV; m[1][21]=TL.TV
@@ -196,7 +203,6 @@ export default function PixelOffice({activeAgentId}:Props){
     mapRef.current=buildMap(allDefs)
     agRef.current=allDefs.map((def,i)=>{
       const seat=SEATS[i]||SEATS[0]
-      // 총괄실장은 빅데스크 중앙에 앉음
       const sx = i===0 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
       const sy = 2+(seat.tr+1)*TS+TS/2+4
       const pool=WORK_SAY[def.id]||WORK_SAY.ops
@@ -600,21 +606,19 @@ export default function PixelOffice({activeAgentId}:Props){
         const tile=mapRef.current[r]?.[c];if(tile) drawTile(tile,2+c*TS,2+r*TS,c,r)
       }
 
-      // 총괄실장 특별 구역 강조 (빛나는 배경)
-      const bosX=2+8*TS,bosY=2+2*TS,bosW=6*TS,bosH=3*TS
+      // 총괄실장 특별 구역 강조
+      const bosX=2+9*TS,bosY=2+2*TS,bosW=6*TS,bosH=3*TS
       ctx.fillStyle=`rgba(255,200,80,${0.04+Math.sin(tick.current*0.8)*0.02})`
       ctx.fillRect(bosX,bosY,bosW,bosH)
-      // 총괄실장 골드 테두리
       ctx.strokeStyle=`rgba(255,180,50,${0.4+Math.sin(tick.current*0.8)*0.15})`
       ctx.lineWidth=2;ctx.setLineDash([6,4])
       ctx.strokeRect(bosX,bosY,bosW,bosH);ctx.setLineDash([])
-      // 총괄실장 구역 라벨
       rr(bosX+4,bosY-18,108,18,4,'rgba(100,60,10,0.88)')
       ctx.font=`bold 11px ${FONT}`;ctx.fillStyle='#ffd080';ctx.textAlign='left'
       ctx.fillText('👑 총괄실장실',bosX+10,bosY-4)
 
-      // 콘텐츠존 테두리
-      const czX=2+1*TS,czY=2+2*TS,czW=3*TS,czH=12*TS
+      // 콘텐츠존 테두리 (좌상단 2x2 구역)
+      const czX=2+1*TS,czY=2+2*TS,czW=7*TS,czH=7*TS
       ctx.strokeStyle='rgba(200,90,30,0.6)';ctx.lineWidth=2.5;ctx.setLineDash([8,5])
       ctx.strokeRect(czX,czY,czW,czH);ctx.setLineDash([])
       rr(czX+2,czY-18,118,18,4,'rgba(210,80,30,0.9)')
