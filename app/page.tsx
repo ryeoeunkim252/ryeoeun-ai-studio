@@ -141,6 +141,10 @@ export default function Home() {
       if (changed) await saveData('nk_settings', finalSettings)
       setSettings(finalSettings)
 
+      // ── 불필요한 커스텀 팀 삭제 (전략기획실, 디자인팀 등 구 커스텀 팀) ──
+      await saveData('nk_custom_teams', [])
+      setCustomTeams([])
+
       // ── 에이전트 순서도 리셋 (새 조직도 순서로) ──────────────
       const CORRECT_ORDER = ['router', 'research', 'content', 'web', 'ops', 'edu']
       const savedOrder = loadData<string[]>('nk_team_order', [])
@@ -153,7 +157,6 @@ export default function Home() {
       // ─────────────────────────────────────────────────────────────
       setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
       setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
-      setCustomTeams(loadData<CustomTeam[]>('nk_custom_teams', []))
       // ── 에이전트 순서 로드 (마이그레이션에서 이미 처리됨) ────────
       const savedAgentOrder = loadData<string[]>('nk_team_order', [])
       if (savedAgentOrder.length > 0 && agentOrder.length === 0) {
