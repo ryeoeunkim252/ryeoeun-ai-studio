@@ -68,7 +68,7 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
         {/* ── CEO (정중앙) + 비서 (오른쪽 실선 연결) ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
 
           {/* 왼쪽 투명 거울 (비서 영역과 동일 크기 → CEO 정중앙 고정) */}
           <div style={{ display: 'flex', alignItems: 'center', visibility: 'hidden', pointerEvents: 'none', flexShrink: 0 }}>
