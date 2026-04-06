@@ -149,8 +149,8 @@ function buildMap(): TileT[][] {
 
   // ── 장식 화분 (적당히) ───────────────────────────────────────
   m[2][8]=TL.PL;  m[2][14]=TL.PL   // CEO 빅데스크 양쪽
-  m[10][6]=TL.PL                     // 노란→ 콘텐츠존 아래 (이동됨)
-  m[9][17]=TL.PL                     // 빨간→ 전략기획실장 아래 복도 (이동됨)
+  m[10][1]=TL.PL                     // 빨간→ 이동됨 (수익화팀 왼쪽 빈 공간)
+  m[9][13]=TL.PL                     // 파란→ 이동됨 (복도 중앙)
   m[ROWS-2][1]=TL.PL                 // 하단 왼쪽 코너
   m[ROWS-2][10]=TL.PL                // 하단 중앙
   m[ROWS-2][17]=TL.PL                // 하단 오른쪽
@@ -204,6 +204,7 @@ interface AgState {
   bubble:string;bubbleT:number
   meetIdx:number;atMeet:boolean
   wp:{x:number;y:number}[]
+  stuckTimer:number   // 막힌 시간 카운터
 }
 
 export default function PixelOffice({activeAgentId}:Props){
@@ -231,7 +232,7 @@ export default function PixelOffice({activeAgentId}:Props){
       return{def,x:sx,y:sy,sx,sy,tx:sx,ty:sy,mode:'sit' as AgMode,
         dir:def.sitDir,wf:0,timer:40+i*12+Math.random()*80,walksLeft:0,
         bubble:pool[Math.floor(Math.random()*pool.length)],
-        bubbleT:80+Math.random()*80,meetIdx:i%MEET_SEATS.length,atMeet:false,wp:[]}
+        bubbleT:80+Math.random()*80,meetIdx:i%MEET_SEATS.length,atMeet:false,wp:[],stuckTimer:0}
     })
   },[])
 
@@ -575,26 +576,71 @@ export default function PixelOffice({activeAgentId}:Props){
           const pool=ag.atMeet?MEET_SAY:(WORK_SAY[ag.def.id]||WORK_SAY.ops)
           ag.bubble=pool[Math.floor(Math.random()*pool.length)];ag.bubbleT=70+Math.random()*70
         }
+        // ── 개선된 moveTo: 8방향 시도 + 우회 경로 + stuck 감지 ──────
         const moveTo=(tx:number,ty:number,spd=1.6)=>{
           const dx=tx-ag.x,dy=ty-ag.y,d=Math.hypot(dx,dy)
           if(d>4){
-            const nx=ag.x+dx/d*spd,ny=ag.y+dy/d*spd
-            if(canWalk(nx,ny)){ag.x=nx;ag.y=ny}
-            else if(canWalk(ag.x+dx/d*spd,ag.y)) ag.x+=dx/d*spd
-            else if(canWalk(ag.x,ag.y+dy/d*spd)) ag.y+=dy/d*spd
+            const ndx=dx/d,ndy=dy/d
+            const nx=ag.x+ndx*spd,ny=ag.y+ndy*spd
+
+            if(canWalk(nx,ny)){
+              ag.x=nx;ag.y=ny
+              ag.stuckTimer=0
+            } else {
+              // 8방향 시도: 대각, 수직, 수평, 약간 비틀기
+              const alts=[
+                [ndx*spd, 0],         // 수평
+                [0, ndy*spd],         // 수직
+                [ndx*spd, ndy*spd*0.5], // 절반 대각
+                [ndx*spd*0.5, ndy*spd], // 절반 대각
+                [-ndy*spd*0.8, ndx*spd*0.8], // 수직 방향으로 우회
+                [ndy*spd*0.8, -ndx*spd*0.8], // 반대 수직 방향
+              ]
+              let moved=false
+              for(const[ox,oy] of alts){
+                if(canWalk(ag.x+ox,ag.y+oy)){
+                  ag.x+=ox;ag.y+=oy
+                  moved=true;ag.stuckTimer=0;break
+                }
+              }
+              if(!moved){
+                ag.stuckTimer++
+                // 오래 막히면 목표 포기하고 새 목표 탐색
+                if(ag.stuckTimer>60){
+                  ag.stuckTimer=0
+                  return true  // 도달한 것처럼 처리 → 새 목표 선택
+                }
+              }
+            }
             ag.wf=(ag.wf+0.15)%4
             if(Math.abs(dx)>Math.abs(dy)) ag.dir=dx>0?'r':'l';else ag.dir=dy>0?'d':'u'
             return false
           }
+          ag.stuckTimer=0
           return true
         }
+
+        // 비서 전용 우측 구역 랜덤 타겟
+        const randRight=():{tx:number,ty:number}=>{
+          for(let i=0;i<60;i++){
+            const tc=20+Math.floor(Math.random()*6)  // cols 20-25
+            const tr=8+Math.floor(Math.random()*6)   // rows 8-13 (회의실 아래 공간)
+            if(WALKABLE.has(mapRef.current[tr]?.[tc]))
+              return{tx:2+tc*TS+TS/2,ty:2+tr*TS+TS/2}
+          }
+          return{tx:2+22*TS+TS/2,ty:2+13*TS+TS/2}
+        }
+
+        const isSecretary=ag.def.id==='secretary'
         ag.timer-=0.04
         switch(ag.mode){
           case 'sit':
-            ag.dir=ag.def.sitDir  // 기본 방향 유지
+            ag.dir=ag.def.sitDir
             if(ag.timer<=0&&!mt.active){
               if(Math.random()<0.28){
-                const tgt=randFloor(false);ag.tx=tgt.tx;ag.ty=tgt.ty;ag.mode='roam'
+                // 비서는 우측 구역만 돌아다님, 나머지는 메인 오피스
+                const tgt=isSecretary?randRight():randFloor(false)
+                ag.tx=tgt.tx;ag.ty=tgt.ty;ag.mode='roam'
                 ag.walksLeft=1+Math.floor(Math.random()*2);ag.timer=8+Math.random()*10
               } else ag.timer=25+Math.random()*55
             }
@@ -602,7 +648,10 @@ export default function PixelOffice({activeAgentId}:Props){
           case 'roam':
             if(moveTo(ag.tx,ag.ty)){
               ag.walksLeft--;if(ag.walksLeft<=0||ag.timer<=0){ag.mode='ret';ag.tx=ag.sx;ag.ty=ag.sy}
-              else{const t2=randFloor(false);ag.tx=t2.tx;ag.ty=t2.ty}
+              else{
+                const t2=isSecretary?randRight():randFloor(false)
+                ag.tx=t2.tx;ag.ty=t2.ty
+              }
             }
             break
           case 'ret':case 'fromMeet':
