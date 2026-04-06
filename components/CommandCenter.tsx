@@ -33,31 +33,36 @@ function statusInfo(s: TaskStatus): { text: string; dot: string; bg: string } {
 }
 
 // ── 조직도 ───────────────────────────────────────────────────
+// 선 색상: 더 선명하게
+const LINE_COLOR = 'rgba(180,100,130,0.7)'
+
 function OrgChart({ tasks }: { tasks: Task[] }) {
   const pending = (id: TeamId) =>
     tasks.filter(t => t.team === id && t.status !== 'done').length
 
   const depts: { id: TeamId; label: string; kpi: string }[] = [
-    { id: 'strategy',   label: '전략기획실',  kpi: '시장·트렌드' },
-    { id: 'content',    label: '콘텐츠본부',  kpi: '기획·채널·디자인' },
-    { id: 'revenue',    label: '수익화팀',    kpi: '수익·제휴' },
-    { id: 'automation', label: '자동화팀',    kpi: 'API·자동화' },
-    { id: 'data',       label: '데이터팀',    kpi: '분석·CRM' },
+    { id: 'strategy',   label: '전략기획실', kpi: '시장·트렌드' },
+    { id: 'content',    label: '콘텐츠팀',   kpi: '기획·채널·디자인' }, // ① 이름 수정
+    { id: 'revenue',    label: '수익화팀',   kpi: '수익·제휴' },
+    { id: 'automation', label: '자동화팀',   kpi: 'API·자동화' },
+    { id: 'data',       label: '데이터팀',   kpi: '분석·CRM' },
   ]
 
+  // ② 3개 서브팀 모두 주황색 스타일 적용, NEW 배지 제거
   const subTeams = [
-    { label: '콘텐츠팀', desc: '기획·카피·스크립트', highlight: false },
-    { label: '디자인팀', desc: '썸네일·이미지·비주얼', highlight: true },
-    { label: '채널운영팀', desc: '인스타·블로그·자동화', highlight: false },
+    { label: '콘텐츠팀',  desc: '기획·카피·스크립트' },
+    { label: '디자인팀',  desc: '썸네일·이미지·비주얼' },
+    { label: '채널운영팀', desc: '인스타·블로그·자동화' },
   ]
 
   return (
     <div style={{
       background: 'var(--card)', border: '1px solid var(--border)',
-      borderRadius: 16, padding: '18px 14px', marginBottom: 24,
+      borderRadius: 16, padding: '20px 16px', marginBottom: 24,
     }}>
-      <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16 }}>
-        조직도 v2 — RYEO EUN AI STUDIO
+      {/* ④ 헤더 폰트 키움 */}
+      <p style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16 }}>
+        조직도 — RYEO EUN AI STUDIO
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -65,30 +70,32 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
         {/* ── CEO ── */}
         <div style={{
           background: 'linear-gradient(135deg, var(--blush) 0%, #c06080 100%)',
-          borderRadius: 12, padding: '10px 32px', textAlign: 'center',
+          borderRadius: 12, padding: '12px 36px', textAlign: 'center',
           boxShadow: '0 4px 12px rgba(200,100,128,0.25)',
         }}>
-          <div style={{ fontSize: 18, marginBottom: 1 }}>👑</div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>려은 CEO</div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>방향 결정 · 최종 승인</div>
+          <div style={{ fontSize: 20, marginBottom: 2 }}>👑</div>
+          {/* ④ 폰트 키움 */}
+          <div style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>려은 CEO</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>방향 결정 · 최종 승인</div>
         </div>
 
-        {/* 연결선 */}
-        <div style={{ width: 2, height: 14, background: 'var(--border)' }} />
+        {/* ③ 선명한 연결선 */}
+        <div style={{ width: 2, height: 14, background: LINE_COLOR }} />
 
         {/* ── 총괄실장 ── */}
         <div style={{
           background: 'var(--bg2, var(--card))',
-          border: '1.5px solid var(--blush-b, rgba(200,100,128,0.35))',
-          borderRadius: 10, padding: '7px 18px', textAlign: 'center',
+          border: '1.5px solid var(--blush-b, rgba(200,100,128,0.45))',
+          borderRadius: 10, padding: '9px 22px', textAlign: 'center',
         }}>
-          <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--text)' }}>🔀 총괄실장 AI</div>
-          <div style={{ fontSize: 8, color: 'var(--muted)' }}>PM + COO · 업무배분 · KPI관리 · 보고서</div>
+          {/* ④ 폰트 키움 */}
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>🔀 총괄실장 AI</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>PM + COO · 업무배분 · KPI관리</div>
         </div>
 
-        {/* 연결선 → 5 depts */}
-        <div style={{ width: 2, height: 14, background: 'var(--border)' }} />
-        <div style={{ width: '100%', height: 2, background: 'var(--border)' }} />
+        {/* ③ 선명한 연결선 */}
+        <div style={{ width: 2, height: 14, background: LINE_COLOR }} />
+        <div style={{ width: '100%', height: 2, background: LINE_COLOR }} />
 
         {/* ── 5개 부서 ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, width: '100%' }}>
@@ -100,85 +107,71 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
                 background: 'var(--bg2, var(--card))',
                 border: '1px solid var(--border)',
                 borderTop: `3px solid ${cfg.color}`,
-                borderRadius: 8, padding: '8px 4px', textAlign: 'center',
+                borderRadius: 8, padding: '10px 4px', textAlign: 'center',
                 position: 'relative',
               }}>
                 {cnt > 0 && (
                   <div style={{
                     position: 'absolute', top: -7, right: -5,
                     background: '#f97316', color: '#fff',
-                    borderRadius: '50%', width: 15, height: 15,
-                    fontSize: 8, fontWeight: 700,
+                    borderRadius: '50%', width: 16, height: 16,
+                    fontSize: 9, fontWeight: 700,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>{cnt}</div>
                 )}
-                <div style={{ fontSize: 16, marginBottom: 2 }}>{cfg.emoji}</div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text)', lineHeight: 1.2 }}>{d.label}</div>
-                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{d.kpi}</div>
+                <div style={{ fontSize: 18, marginBottom: 3 }}>{cfg.emoji}</div>
+                {/* ④ 폰트 키움 */}
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', lineHeight: 1.3 }}>{d.label}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>{d.kpi}</div>
               </div>
             )
           })}
         </div>
 
-        {/* ── 콘텐츠본부 서브팀 (그래프 형식) ── */}
-        {/*
-          5열 그리드에서 Content는 2번째 열(중앙=30%)
-          서브팀 컨테이너 width=60% → 중앙=30% → Content 열과 정확히 정렬
-        */}
+        {/* ── 콘텐츠팀 서브팀 (그래프 형식) ── */}
         <div style={{ width: '100%' }}>
           <div style={{
             width: '60%',
             display: 'flex', flexDirection: 'column', alignItems: 'center',
           }}>
 
-            {/* Content 박스 하단 → 수직 하강선 */}
-            <div style={{ width: 2, height: 12, background: 'var(--border)' }} />
+            {/* ③ 선명한 수직 하강선 */}
+            <div style={{ width: 2, height: 14, background: LINE_COLOR }} />
 
-            {/* 수평선 + 3개 수직 하강선 */}
+            {/* ③ 선명한 수평선 + 3개 수직 하강선 */}
             <div style={{ position: 'relative', width: '100%', height: 14 }}>
-              {/* 수평 연결선: 1열 중심(16.67%) ~ 3열 중심(83.33%) */}
               <div style={{
                 position: 'absolute',
                 left: '16.67%', right: '16.67%',
                 top: 0, height: 2,
-                background: 'var(--border)',
+                background: LINE_COLOR,
               }} />
-              {/* 3개 수직 하강선 */}
               {[16.67, 50, 83.33].map((pct, i) => (
                 <div key={i} style={{
                   position: 'absolute',
                   left: `${pct}%`,
                   top: 0, width: 2, height: 14,
-                  background: 'var(--border)',
+                  background: LINE_COLOR,
                   transform: 'translateX(-50%)',
                 }} />
               ))}
             </div>
 
-            {/* 3개 서브팀 카드 */}
+            {/* ② 3개 서브팀 모두 주황색, NEW 없음 */}
             <div style={{
               display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
               gap: 6, width: '100%',
             }}>
               {subTeams.map(s => (
                 <div key={s.label} style={{
-                  background: s.highlight ? 'rgba(216,90,48,0.1)' : 'var(--card)',
-                  border: `1px solid ${s.highlight ? 'rgba(216,90,48,0.5)' : 'var(--border)'}`,
-                  borderTop: `2px solid ${s.highlight ? '#d85a30' : 'rgba(216,90,48,0.3)'}`,
-                  borderRadius: 7, padding: '8px 4px', textAlign: 'center',
+                  background: 'rgba(216,90,48,0.1)',
+                  border: '1px solid rgba(216,90,48,0.5)',
+                  borderTop: '2px solid #d85a30',
+                  borderRadius: 7, padding: '10px 4px', textAlign: 'center',
                 }}>
-                  <div style={{
-                    fontSize: 10, fontWeight: 700,
-                    color: s.highlight ? '#d85a30' : 'var(--text)',
-                  }}>{s.label}</div>
-                  <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{s.desc}</div>
-                  {s.highlight && (
-                    <div style={{
-                      marginTop: 3, fontSize: 7, color: '#d85a30',
-                      background: 'rgba(216,90,48,0.12)',
-                      borderRadius: 3, padding: '1px 5px', display: 'inline-block',
-                    }}>NEW</div>
-                  )}
+                  {/* ④ 폰트 키움 */}
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#d85a30' }}>{s.label}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>{s.desc}</div>
                 </div>
               ))}
             </div>
@@ -188,31 +181,31 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
         {/* ── 자동 성장 루프 ── */}
         <div style={{
           width: '100%', marginTop: 10,
-          padding: '7px 10px',
+          padding: '8px 12px',
           background: 'var(--bg2, var(--card))',
           borderRadius: 8, display: 'flex', alignItems: 'center',
-          gap: 4, flexWrap: 'wrap', justifyContent: 'center',
+          gap: 6, flexWrap: 'wrap', justifyContent: 'center',
         }}>
-          <span style={{ fontSize: 8, color: 'var(--muted)' }}>루프:</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>루프:</span>
           {[
             { label: '전략기획', color: '#1d9e75' },
             { label: '콘텐츠', color: '#d85a30' },
             { label: '수익화', color: '#ba7517' },
             { label: '데이터', color: '#3b6d11' },
           ].map((item, i, arr) => (
-            <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{
-                fontSize: 8, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 color: item.color,
                 background: `${item.color}18`,
-                borderRadius: 4, padding: '2px 6px',
+                borderRadius: 4, padding: '3px 8px',
               }}>{item.label}</span>
               {i < arr.length - 1 && (
-                <span style={{ fontSize: 8, color: 'var(--muted)' }}>→</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>→</span>
               )}
             </span>
           ))}
-          <span style={{ fontSize: 8, color: 'var(--muted)' }}>↺ 반복</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>↺ 반복</span>
         </div>
       </div>
     </div>
