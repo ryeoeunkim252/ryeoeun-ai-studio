@@ -11,7 +11,8 @@ const NOTION_TOOLS: Anthropic.Tool[] = [
   {
     name: 'notion_create_page',
     description: 'Notion에 새 페이지를 생성합니다. 항상 정해진 양식대로 모든 필드를 채워서 저장하세요.',
-    input_schema: {{      type: 'object',
+    input_schema: {
+      type: 'object',
       properties: {
         title:     { type: 'string', description: '페이지 제목' },
         content:   { type: 'string', description: '상세 내용' },
@@ -84,7 +85,7 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
       const res = await fetch('https://api.notion.com/v1/pages', {
         method: 'POST', headers,
         body: JSON.stringify({
-          parent: { type: 'page_id', page_id: '3379d3b60d6180d1a64bc5c9e3f00fa9' },
+          parent: { type: 'page_id', page_id: '33a9d3b60d6180cfb5cae8c1362b89cc' },
           properties: { title: { title: [{ text: { content: input.title } }] } },
           children: blocks,
         }),
@@ -428,9 +429,6 @@ async function getGoogleAccessToken(): Promise<string> {
     }),
   })
   const data = await res.json()
-  if (!res.ok || !data.access_token) {
-    throw new Error(`Google 토큰 발급 실패: ${data.error || 'unknown'} - ${data.error_description || ''}`)
-  }
   return data.access_token
 }
 
@@ -449,9 +447,6 @@ async function callGDriveAPI(toolName: string, input: Record<string, string>): P
       const url = `https://www.googleapis.com/drive/v3/files?pageSize=10&fields=files(id,name,mimeType,modifiedTime)${q ? `&q=${encodeURIComponent(q)}` : ''}`
       const res = await fetch(url, { headers })
       const data = await res.json()
-      if (!res.ok || data.error) {
-        return JSON.stringify({ error: data.error?.message || 'Drive 목록 조회 실패: ' + res.status })
-      }
       return JSON.stringify({
         success: true,
         files: data.files?.map((f: {id:string; name:string; mimeType:string; modifiedTime:string}) => ({
@@ -467,9 +462,6 @@ async function callGDriveAPI(toolName: string, input: Record<string, string>): P
         body: JSON.stringify(meta),
       })
       const data = await res.json()
-      if (!res.ok || data.error) {
-        return JSON.stringify({ error: data.error?.message || 'Drive 파일 생성 실패: ' + res.status })
-      }
       return JSON.stringify({
         success: true,
         file_id: data.id,
@@ -520,12 +512,6 @@ async function callGCalAPI(toolName: string, input: Record<string, string>): Pro
         }),
       })
       const data = await res.json()
-      // ✅ 에러 체크 추가 (버그 수정)
-      if (!res.ok || data.error) {
-        return JSON.stringify({
-          error: data.error?.message || `Calendar API 실패 (상태코드: ${res.status})`
-        })
-      }
       return JSON.stringify({
         success: true,
         event_id: data.id,
@@ -642,16 +628,7 @@ export async function POST(req: Request) {
             mcpTools: mcpToolNames || null,
           })
 
-          // ✅ 현재 날짜/시간을 에이전트에게 알려줌
-          const nowKST = new Date().toLocaleString('ko-KR', { 
-            timeZone: 'Asia/Seoul',
-            year: 'numeric', month: 'long', day: 'numeric',
-            weekday: 'long', hour: '2-digit', minute: '2-digit'
-          })
-          const dateContext = `[현재 날짜/시간: ${nowKST} (KST)]
-
-`
-          const taskWithContext = dateContext + injectContext(step, prevResult)
+          const taskWithContext = injectContext(step, prevResult)
 
           if (tools.length > 0) {
             const messages: Anthropic.MessageParam[] = [
