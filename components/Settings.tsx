@@ -4,7 +4,10 @@ import { loadData, saveData, DEFAULT_SETTINGS, type AppSettings } from '@/lib/st
 
 const DEFAULT_AIDS = ['router', 'web', 'content', 'edu', 'research', 'ops']
 const DEFAULT_ICONS: Record<string, string> = { router: '🔀', web: '🌐', content: '✍️', edu: '📚', research: '🔬', ops: '🚀' }
-const DEFAULT_ROLES: Record<string, string> = { router: '총괄 조정', web: '웹 개발/디자인', content: '콘텐츠 제작', edu: '교육 프로그램', research: '시장 조사/분석', ops: '인프라/운영' }
+const DEFAULT_ROLES: Record<string, string> = {
+  router: '총괄 조정', web: '웹 개발/디자인', content: '콘텐츠 제작',
+  edu: '교육 프로그램', research: '시장 조사/분석', ops: '인프라/운영',
+}
 const DEFAULT_DESC: Record<string, string> = {
   router: '업무를 자동으로 배분하고 전체 흐름을 관리해요',
   web: 'Next.js · Tailwind · Figma로 웹을 만들어요',
@@ -13,15 +16,14 @@ const DEFAULT_DESC: Record<string, string> = {
   research: '시장 분석과 데이터 조사를 수행해요',
   ops: 'Vercel 배포·서버·자동화를 담당해요',
 }
-
 const ICON_OPTIONS = ['🎨','🌐','✍️','📚','🔬','🚀','🤖','🎯','📊','⭐','🔧','💡','🏆','⏳','🎪','🌟','🦄','🐙']
 
 const MODELS = [
-  { id: 'claude-opus-4-5',           label: 'Claude Opus',   desc: '최고 성능. 복잡한 분석, 창의적 작업, 긴 문서 작성', color: '#b45309' },
-  { id: 'claude-sonnet-4-5',         label: 'Claude Sonnet', desc: '균형잡힌 성능. 일반 업무, 학습 보조, 문서 작성', color: '#6d28d9' },
-  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku',  desc: '빠른 응답. 간단한 질문, 분류, 간단한 작업', color: '#065f46' },
-  { id: 'gemini-pro',                label: 'Gemini Pro',    desc: '구글 데이터 처리, 멀티모달 분석', color: '#1d4ed8' },
-  { id: 'grok',                      label: 'Grok',          desc: '최신 정보 분석, 실시간 트렌드 분석', color: '#0369a1' },
+  { id: 'claude-opus-4-5',           label: 'Claude Opus',   desc: '최고 성능. 복잡한 분석, 창의적 작업', color: '#b45309' },
+  { id: 'claude-sonnet-4-5',         label: 'Claude Sonnet', desc: '균형잡힌 성능. 일반 업무, 문서 작성', color: '#6d28d9' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku',  desc: '빠른 응답. 간단한 질문, 분류',       color: '#065f46' },
+  { id: 'gemini-pro',                label: 'Gemini Pro',    desc: '구글 데이터 처리, 멀티모달 분석',   color: '#1d4ed8' },
+  { id: 'grok',                      label: 'Grok',          desc: '최신 정보 분석, 실시간 트렌드',     color: '#0369a1' },
 ]
 
 const MCPS = [
@@ -53,6 +55,12 @@ export default function Settings() {
   const [saved, setSaved]             = useState(false)
   const [editingMcp, setEditingMcp]   = useState<string | null>(null)
 
+  // ✅ 새로 추가: 세부 업무 + 역할 + 순서
+  const [teamRoles, setTeamRoles] = useState<Record<string, string>>({})
+  const [teamDescs, setTeamDescs] = useState<Record<string, string>>({})
+  const [teamOrder, setTeamOrder] = useState<string[]>([])
+  const [editingTeam, setEditingTeam] = useState<string | null>(null) // 인라인 편집 중인 팀
+
   const [showAddMcp, setShowAddMcp] = useState(false)
   const [newMcpName, setNewMcpName] = useState('')
   const [newMcpUrl, setNewMcpUrl]   = useState('')
@@ -65,26 +73,66 @@ export default function Settings() {
   const [newTeamModel, setNewTeamModel] = useState('claude-sonnet-4-5')
 
   useEffect(() => {
-    setSettings(loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS))
-    setTeamModels(loadData('nk_team_models', { router: 'claude-haiku-4-5-20251001', web: 'claude-opus-4-5', content: 'claude-sonnet-4-5', edu: 'claude-sonnet-4-5', research: 'claude-sonnet-4-5', ops: 'claude-sonnet-4-5' }))
-    setTeamEnabled(loadData('nk_team_enabled', { router: true, web: true, content: true, edu: true, research: true, ops: true }))
+    const s = loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS)
+    setSettings(s)
+    setTeamModels(loadData('nk_team_models', {
+      router: 'claude-haiku-4-5-20251001', web: 'claude-opus-4-5',
+      content: 'claude-sonnet-4-5', edu: 'claude-sonnet-4-5',
+      research: 'claude-sonnet-4-5', ops: 'claude-sonnet-4-5',
+    }))
+    setTeamEnabled(loadData('nk_team_enabled', {
+      router: true, web: true, content: true, edu: true, research: true, ops: true,
+    }))
     setMcpEnabled(loadData('nk_mcp', {}))
-    const savedTeams = loadData<Record<string, string[]>>('nk_mcp_teams', {})
-    const initialTeams: Record<string, string[]> = {}
-    MCPS.forEach(mcp => { initialTeams[mcp.id] = savedTeams[mcp.id] ?? mcp.defaultTeams })
-    setMcpTeams(initialTeams)
-    setCustomTeams(loadData('nk_custom_teams', []))
+    const savedMcpTeams = loadData<Record<string, string[]>>('nk_mcp_teams', {})
+    const initMcp: Record<string, string[]> = {}
+    MCPS.forEach(mcp => { initMcp[mcp.id] = savedMcpTeams[mcp.id] ?? mcp.defaultTeams })
+    setMcpTeams(initMcp)
+    const cts = loadData<CustomTeam[]>('nk_custom_teams', [])
+    setCustomTeams(cts)
+
+    // ✅ 역할/설명/순서 로드
+    setTeamRoles(loadData('nk_team_roles', {}))
+    setTeamDescs(loadData('nk_team_descs', {}))
+    const savedOrder = loadData<string[]>('nk_team_order', [])
+    if (savedOrder.length > 0) setTeamOrder(savedOrder)
+    else setTeamOrder([...DEFAULT_AIDS, ...cts.map(t => t.id)])
   }, [])
 
-  const allIds      = [...DEFAULT_AIDS, ...customTeams.map(t => t.id)]
-  const getIcon     = (id: string) => DEFAULT_ICONS[id] || customTeams.find(t => t.id === id)?.icon || '🤖'
-  const getName     = (id: string) => settings.agentNames[id] || customTeams.find(t => t.id === id)?.name || id
-  const getDesc     = (id: string) => DEFAULT_DESC[id] || customTeams.find(t => t.id === id)?.desc || ''
-  const getRole     = (id: string) => DEFAULT_ROLES[id] || customTeams.find(t => t.id === id)?.role || ''
+  // teamOrder가 비어있을 때 자동 초기화
+  const allIds = teamOrder.length > 0
+    ? teamOrder.filter(id => [...DEFAULT_AIDS, ...customTeams.map(t => t.id)].includes(id))
+        .concat([...DEFAULT_AIDS, ...customTeams.map(t => t.id)].filter(id => !teamOrder.includes(id)))
+    : [...DEFAULT_AIDS, ...customTeams.map(t => t.id)]
+
+  const getIcon  = (id: string) => DEFAULT_ICONS[id] || customTeams.find(t => t.id === id)?.icon || '🤖'
+  const getName  = (id: string) => settings.agentNames[id] || customTeams.find(t => t.id === id)?.name || id
+  const getRole  = (id: string) => teamRoles[id] || DEFAULT_ROLES[id] || customTeams.find(t => t.id === id)?.role || ''
+  const getDesc  = (id: string) => teamDescs[id] || DEFAULT_DESC[id] || customTeams.find(t => t.id === id)?.desc || ''
   const activeTeams = allIds.filter(id => teamEnabled[id] !== false).length
 
   const updateName = (id: string, name: string) =>
     setSettings(prev => ({ ...prev, agentNames: { ...prev.agentNames, [id]: name } }))
+  const updateRole = (id: string, role: string) =>
+    setTeamRoles(prev => ({ ...prev, [id]: role }))
+  const updateDesc = (id: string, desc: string) =>
+    setTeamDescs(prev => ({ ...prev, [id]: desc }))
+
+  // ✅ 순서 변경 (위/아래)
+  const moveUp = (id: string) => {
+    setTeamOrder(prev => {
+      const arr = [...prev]; const i = arr.indexOf(id)
+      if (i > 0) { [arr[i-1], arr[i]] = [arr[i], arr[i-1]] }
+      return arr
+    })
+  }
+  const moveDown = (id: string) => {
+    setTeamOrder(prev => {
+      const arr = [...prev]; const i = arr.indexOf(id)
+      if (i < arr.length - 1) { [arr[i], arr[i+1]] = [arr[i+1], arr[i]] }
+      return arr
+    })
+  }
 
   const toggleMcpTeam = (mcpId: string, teamId: string) => {
     setMcpTeams(prev => {
@@ -101,6 +149,7 @@ export default function Settings() {
     setCustomTeams(prev => [...prev, team])
     setTeamModels(prev => ({ ...prev, [id]: newTeamModel }))
     setTeamEnabled(prev => ({ ...prev, [id]: true }))
+    setTeamOrder(prev => [...prev, id])
     setSettings(prev => ({ ...prev, agentNames: { ...prev.agentNames, [id]: newTeamName } }))
     setShowAddTeam(false); setNewTeamName(''); setNewTeamRole(''); setNewTeamDesc(''); setNewTeamIcon('🤖')
   }
@@ -109,6 +158,7 @@ export default function Settings() {
     setCustomTeams(prev => prev.filter(t => t.id !== id))
     setTeamModels(prev => { const n = { ...prev }; delete n[id]; return n })
     setTeamEnabled(prev => { const n = { ...prev }; delete n[id]; return n })
+    setTeamOrder(prev => prev.filter(x => x !== id))
   }
 
   const saveAll = () => {
@@ -118,6 +168,9 @@ export default function Settings() {
     saveData('nk_mcp', mcpEnabled)
     saveData('nk_mcp_teams', mcpTeams)
     saveData('nk_custom_teams', customTeams)
+    saveData('nk_team_roles', teamRoles)
+    saveData('nk_team_descs', teamDescs)
+    saveData('nk_team_order', allIds)
     setSaved(true)
     setTimeout(() => { setSaved(false); window.location.reload() }, 1500)
   }
@@ -130,7 +183,7 @@ export default function Settings() {
           <p className="text-[13px]" style={{ color: 'var(--muted)' }}>AI 팀 구성과 도구 연결을 관리해요</p>
         </div>
 
-        {/* 팀별 AI 모델 설정 */}
+        {/* ✅ 팀 설정 섹션 */}
         <div className="rounded-2xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>🤖 팀별 AI 모델 설정</h3>
@@ -138,8 +191,12 @@ export default function Settings() {
               {activeTeams}/{allIds.length} 활성
             </span>
           </div>
-          <p className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>각 팀이 사용할 AI 모델을 설정해요</p>
-          <div className="flex flex-col gap-1.5 mb-4 p-3 rounded-xl" style={{ background: 'var(--bg2)' }}>
+          <p className="text-[12px] mb-2" style={{ color: 'var(--muted)' }}>
+            팀 이름·역할·설명 수정 / ↑↓ 순서 변경 / AI 모델 선택
+          </p>
+
+          {/* 모델 범례 */}
+          <div className="flex flex-col gap-1 mb-4 p-3 rounded-xl" style={{ background: 'var(--bg2)' }}>
             <p className="text-[11px] font-semibold mb-1" style={{ color: 'var(--muted)' }}>모델별 특징</p>
             {MODELS.map(m => (
               <div key={m.id} className="flex items-center gap-2">
@@ -149,46 +206,111 @@ export default function Settings() {
               </div>
             ))}
           </div>
+
+          {/* 팀 목록 */}
           <div className="flex flex-col gap-2">
-            {allIds.map(id => {
+            {allIds.map((id, idx) => {
               const currentModel = MODELS.find(m => m.id === (teamModels[id] || 'claude-sonnet-4-5'))
               const isCustom = id.startsWith('custom_')
+              const isEditing = editingTeam === id
+
               return (
                 <div key={id} className="rounded-xl p-3"
                   style={{ background: 'var(--bg2)', opacity: teamEnabled[id] === false ? 0.45 : 1, transition: 'opacity .2s' }}>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => setTeamEnabled(prev => ({ ...prev, [id]: prev[id] === false ? true : false }))}
-                      className="w-10 h-5 rounded-full relative flex-shrink-0"
+                  {/* 상단 행: 토글 + 아이콘 + 이름 + 모델 + 순서 + 편집 */}
+                  <div className="flex items-center gap-2">
+                    {/* ON/OFF 토글 */}
+                    <button onClick={() => setTeamEnabled(prev => ({ ...prev, [id]: prev[id] === false }))}
+                      className="w-9 h-5 rounded-full relative flex-shrink-0"
                       style={{ background: teamEnabled[id] !== false ? 'var(--olive)' : 'var(--border)', transition: 'background .2s' }}>
                       <div className="w-4 h-4 rounded-full absolute top-0.5 bg-white shadow-sm"
-                        style={{ left: teamEnabled[id] !== false ? '22px' : '2px', transition: 'left .2s' }} />
+                        style={{ left: teamEnabled[id] !== false ? '20px' : '2px', transition: 'left .2s' }} />
                     </button>
-                    <span style={{ fontSize: 16, width: 22 }}>{getIcon(id)}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>{getName(id)}</p>
-                      <p className="text-[10px]" style={{ color: 'var(--muted)' }}>{getDesc(id)}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+
+                    {/* 아이콘 */}
+                    <span style={{ fontSize: 16, width: 22, flexShrink: 0 }}>{getIcon(id)}</span>
+
+                    {/* 이름 */}
+                    <input value={getName(id)} onChange={e => updateName(id, e.target.value)}
+                      className="px-2 py-1 rounded-lg text-[12px] font-medium outline-none flex-1 min-w-0"
+                      style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+
+                    {/* 모델 선택 */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <div className="w-2 h-2 rounded-full" style={{ background: currentModel?.color || '#888' }} />
                       <select value={teamModels[id] || 'claude-sonnet-4-5'}
                         onChange={e => setTeamModels(prev => ({ ...prev, [id]: e.target.value }))}
                         disabled={teamEnabled[id] === false}
-                        className="px-2 py-1.5 rounded-xl text-[11px] outline-none"
-                        style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', maxWidth: 130 }}>
+                        className="px-2 py-1 rounded-lg text-[11px] outline-none"
+                        style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', maxWidth: 120 }}>
                         {MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                       </select>
                     </div>
+
+                    {/* ✅ 순서 변경 버튼 */}
+                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                      <button onClick={() => moveUp(id)}
+                        disabled={idx === 0}
+                        className="w-5 h-4 rounded text-[9px] flex items-center justify-center leading-none"
+                        style={{ background: idx===0?'var(--border)':'var(--blush)', color: idx===0?'var(--muted)':'#fff', opacity: idx===0?0.4:1 }}>
+                        ▲
+                      </button>
+                      <button onClick={() => moveDown(id)}
+                        disabled={idx === allIds.length - 1}
+                        className="w-5 h-4 rounded text-[9px] flex items-center justify-center leading-none"
+                        style={{ background: idx===allIds.length-1?'var(--border)':'var(--blush)', color: idx===allIds.length-1?'var(--muted)':'#fff', opacity: idx===allIds.length-1?0.4:1 }}>
+                        ▼
+                      </button>
+                    </div>
+
+                    {/* ✅ 세부 편집 버튼 */}
+                    <button onClick={() => setEditingTeam(isEditing ? null : id)}
+                      className="text-[11px] px-2 py-1 rounded-lg flex-shrink-0"
+                      style={{ background: isEditing ? 'var(--blush)' : 'var(--border)', color: isEditing ? '#fff' : 'var(--muted)' }}>
+                      {isEditing ? '✓ 완료' : '✏️'}
+                    </button>
+
+                    {/* 커스텀 팀 삭제 */}
                     {isCustom && (
-                      <button onClick={() => removeCustomTeam(id)} className="text-[18px] ml-1 flex-shrink-0"
-                        style={{ color: 'var(--muted)', lineHeight: 1 }}>×</button>
+                      <button onClick={() => removeCustomTeam(id)} className="text-[16px] flex-shrink-0"
+                        style={{ color: 'var(--muted)' }}>×</button>
                     )}
                   </div>
+
+                  {/* ✅ 세부 편집 패널 (펼쳐지는 형태) */}
+                  {isEditing && (
+                    <div className="mt-2 flex flex-col gap-1.5 pt-2"
+                      style={{ borderTop: '1px solid var(--border)' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] w-12 flex-shrink-0" style={{ color: 'var(--muted)' }}>역할</span>
+                        <input value={getRole(id)} onChange={e => updateRole(id, e.target.value)}
+                          placeholder="예: 웹 개발/디자인"
+                          className="flex-1 px-2 py-1 rounded-lg text-[11px] outline-none"
+                          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] w-12 flex-shrink-0" style={{ color: 'var(--muted)' }}>설명</span>
+                        <input value={getDesc(id)} onChange={e => updateDesc(id, e.target.value)}
+                          placeholder="예: Next.js · Tailwind 로 웹을 만들어요"
+                          className="flex-1 px-2 py-1 rounded-lg text-[11px] outline-none"
+                          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                      </div>
+                      {/* 현재 값 미리보기 */}
+                      <div className="text-[10px] px-2 py-1 rounded-lg"
+                        style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>
+                        👁️ 미리보기: <strong>{getName(id)}</strong> · {getRole(id)} — {getDesc(id)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
+
+          {/* 팀 추가 폼 */}
           {showAddTeam && (
-            <div className="rounded-xl p-4 mt-3 flex flex-col gap-2" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+            <div className="rounded-xl p-4 mt-3 flex flex-col gap-2"
+              style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
               <p className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>새 팀 추가</p>
               <div className="flex flex-wrap gap-1.5">
                 {ICON_OPTIONS.map(ic => (
@@ -208,7 +330,7 @@ export default function Settings() {
                 className="px-3 py-2 rounded-xl text-[12px] outline-none"
                 style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
               <input value={newTeamDesc} onChange={e => setNewTeamDesc(e.target.value)}
-                placeholder="팀 설명 (예: 웹사이트 디자인 및 브랜딩을 담당해요)"
+                placeholder="팀 설명 (예: Figma로 디자인하고 코드로 구현해요)"
                 className="px-3 py-2 rounded-xl text-[12px] outline-none"
                 style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
               <select value={newTeamModel} onChange={e => setNewTeamModel(e.target.value)}
@@ -235,7 +357,7 @@ export default function Settings() {
           )}
         </div>
 
-        {/* ✅ MCP 도구 연결 - 팀 배분 수정 가능 */}
+        {/* MCP 도구 연결 */}
         <div className="rounded-2xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>🔌 MCP 도구 연결</h3>
@@ -249,8 +371,10 @@ export default function Settings() {
           <p className="text-[11px] mb-4 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>
             💡 ✏️ 버튼을 클릭해서 각 도구의 담당 팀을 추가/제거할 수 있어요!
           </p>
+
           {showAddMcp && (
-            <div className="rounded-xl p-4 mb-4 flex flex-col gap-2" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+            <div className="rounded-xl p-4 mb-4 flex flex-col gap-2"
+              style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
               <p className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>새 MCP 서버 추가</p>
               <input value={newMcpName} onChange={e => setNewMcpName(e.target.value)}
                 placeholder="서버 이름 (예: My Tool)"
@@ -270,16 +394,17 @@ export default function Settings() {
               </div>
             </div>
           )}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
             {MCPS.map(tool => {
               const isOn = mcpEnabled[tool.id]
               const assignedTeams = mcpTeams[tool.id] || tool.defaultTeams
-              const isEditing = editingMcp === tool.id
+              const isEdit = editingMcp === tool.id
               return (
                 <div key={tool.id} className="rounded-xl p-3 flex flex-col"
-                  style={{ background: 'var(--bg2)', border: `1.5px solid ${isOn ? 'var(--olive-b)' : 'var(--border)'}`, minHeight: 140 }}>
-                  <div className="flex items-start justify-between mb-2">
-                    <span style={{ fontSize: 24 }}>{tool.icon}</span>
+                  style={{ background: 'var(--bg2)', border: `1.5px solid ${isOn ? 'var(--olive-b, #86c068)' : 'var(--border)'}`, minHeight: 130 }}>
+                  <div className="flex items-start justify-between mb-1.5">
+                    <span style={{ fontSize: 22 }}>{tool.icon}</span>
                     <button onClick={() => setMcpEnabled(prev => ({ ...prev, [tool.id]: !prev[tool.id] }))}
                       className="w-9 h-5 rounded-full relative flex-shrink-0 mt-0.5"
                       style={{ background: isOn ? 'var(--olive)' : 'var(--border)', transition: 'background .2s' }}>
@@ -289,47 +414,44 @@ export default function Settings() {
                   </div>
                   <p className="text-[12px] font-semibold leading-tight" style={{ color: 'var(--text)' }}>{tool.name}</p>
                   <p className="text-[10px] mt-0.5 leading-tight flex-1" style={{ color: 'var(--muted)' }}>{tool.desc}</p>
-                  <div className="mt-2">
-                    {isEditing ? (
+                  <div className="mt-1.5">
+                    {isEdit ? (
                       <div className="flex flex-col gap-1">
-                        <p className="text-[9px] mb-0.5" style={{ color: 'var(--muted)' }}>담당 팀 선택:</p>
+                        <p className="text-[9px]" style={{ color: 'var(--muted)' }}>담당 팀:</p>
                         <div className="flex flex-wrap gap-1">
                           {allIds.map(tid => {
-                            const isAssigned = assignedTeams.includes(tid)
+                            const assigned = assignedTeams.includes(tid)
                             return (
                               <button key={tid} onClick={() => toggleMcpTeam(tool.id, tid)}
                                 className="text-[8px] px-1.5 py-0.5 rounded-full"
                                 style={{
-                                  background: isAssigned ? 'var(--blush)' : 'var(--border)',
-                                  color: isAssigned ? '#fff' : 'var(--muted)',
-                                  border: `1px solid ${isAssigned ? 'var(--blush)' : 'var(--border)'}`,
+                                  background: assigned ? 'var(--blush)' : 'var(--border)',
+                                  color: assigned ? '#fff' : 'var(--muted)',
                                 }}>
-                                {getIcon(tid)} {getName(tid)}
+                                {getName(tid)}
                               </button>
                             )
                           })}
                         </div>
                         <button onClick={() => setEditingMcp(null)}
-                          className="text-[9px] mt-1 py-0.5 rounded-lg w-full"
-                          style={{ background: 'var(--olive-l)', color: 'var(--olive)' }}>
+                          className="text-[9px] mt-0.5 py-0.5 rounded-lg w-full"
+                          style={{ background: 'var(--olive-l, #e6f4dc)', color: 'var(--olive)' }}>
                           ✓ 완료
                         </button>
                       </div>
                     ) : (
                       <div className="flex flex-wrap gap-1 items-center">
-                        {assignedTeams.length === 0 ? (
-                          <span className="text-[9px]" style={{ color: 'var(--muted)' }}>팀 없음</span>
-                        ) : assignedTeams.slice(0, 3).map(tid => (
+                        {assignedTeams.slice(0, 2).map(tid => (
                           <span key={tid} className="text-[8px] px-1.5 py-0.5 rounded-full"
-                            style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
+                            style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b, #f9a8cc)' }}>
                             {getName(tid)}
                           </span>
                         ))}
-                        {assignedTeams.length > 3 && (
-                          <span className="text-[8px]" style={{ color: 'var(--muted)' }}>+{assignedTeams.length - 3}</span>
+                        {assignedTeams.length > 2 && (
+                          <span className="text-[8px]" style={{ color: 'var(--muted)' }}>+{assignedTeams.length - 2}</span>
                         )}
                         <button onClick={() => setEditingMcp(tool.id)}
-                          className="text-[8px] px-1 py-0.5 rounded ml-auto"
+                          className="text-[9px] px-1 py-0.5 rounded ml-auto"
                           style={{ color: 'var(--muted)' }}>✏️</button>
                       </div>
                     )}
@@ -337,25 +459,6 @@ export default function Settings() {
                 </div>
               )
             })}
-          </div>
-        </div>
-
-        {/* 팀 이름 설정 */}
-        <div className="rounded-2xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-          <h3 className="text-[15px] font-semibold mb-3" style={{ color: 'var(--text)' }}>🏷️ 팀 이름 설정</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-            {allIds.map(id => (
-              <div key={id} className="rounded-xl p-3 flex flex-col justify-between"
-                style={{ background: 'var(--bg2)', aspectRatio: '1 / 1' }}>
-                <div>
-                  <span style={{ fontSize: 22 }}>{getIcon(id)}</span>
-                  <p className="text-[9px] mt-1 mb-1 leading-tight" style={{ color: 'var(--muted)' }}>{getRole(id)}</p>
-                </div>
-                <input value={getName(id)} onChange={e => updateName(id, e.target.value)}
-                  className="w-full px-2 py-1.5 rounded-xl text-[12px] outline-none"
-                  style={{ background: 'var(--card)', border: '1.5px solid var(--border)', color: 'var(--text)' }} />
-              </div>
-            ))}
           </div>
         </div>
 
