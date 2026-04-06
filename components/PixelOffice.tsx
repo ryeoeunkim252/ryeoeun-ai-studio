@@ -165,6 +165,7 @@ interface AgState {
   timer:number; walksLeft:number
   bubble:string; bubbleT:number
   meetIdx:number; atMeet:boolean
+  wp:{x:number;y:number}[]   // 경유지 (문 통과용)
 }
 
 // ══════════════════════════════════════════
@@ -177,7 +178,7 @@ export default function PixelOffice({activeAgentId}:Props){
   const setRef=useRef<AppSettings>(DEFAULT_SETTINGS)
   const agRef=useRef<AgState[]>([])
   const mapRef=useRef<TileT[][]>([])
-  const meetR=useRef({active:false,cd:500+Math.random()*300})
+  const meetR=useRef({active:false,cd:3500+Math.random()*2500})
 
   useEffect(()=>{actRef.current=activeAgentId},[activeAgentId])
 
@@ -208,6 +209,7 @@ export default function PixelOffice({activeAgentId}:Props){
         wf:0,timer:40+i*12+Math.random()*80,walksLeft:0,
         bubble:pool[Math.floor(Math.random()*pool.length)],
         bubbleT:80+Math.random()*80,meetIdx:i%MEET_SEATS.length,atMeet:false,
+        wp:[],
       }
     })
   },[])
@@ -627,19 +629,26 @@ export default function PixelOffice({activeAgentId}:Props){
       const mt=meetR.current
       mt.cd-=1
       if(mt.cd<=0&&!mt.active){
-        mt.active=true; mt.cd=350+Math.random()*250
+        mt.active=true; mt.cd=2800+Math.random()*2000  // 회의 지속: 약 50-80초
         const shuffled=[...agRef.current].sort(()=>Math.random()-0.5)
         const cnt=2+Math.floor(Math.random()*3)
+        const DOOR_X=2+17*TS+TS/2, DOOR_Y=2+6*TS+TS/2
         shuffled.slice(0,cnt).forEach((ag,i)=>{
           const ms=MEET_SEATS[i%MEET_SEATS.length]
           ag.tx=2+ms.tc*TS+TS/2; ag.ty=2+(ms.tr+1)*TS+4
-          ag.mode='toMeet'; ag.atMeet=false
-          // 방향: 왼쪽 의자면 오른쪽을 봄(r), 오른쪽 의자면 왼쪽을 봄(l)
+          ag.mode='toMeet'; ag.atMeet=false; ag.wp=[]
+          // 왼쪽 사무실 → 오른쪽 회의실: 반드시 문 경유
+          if(ag.x < 2+17*TS) ag.wp=[{x:DOOR_X, y:DOOR_Y}]
         })
       } else if(mt.active&&mt.cd<=0){
-        mt.active=false; mt.cd=400+Math.random()*300
+        mt.active=false; mt.cd=3500+Math.random()*2500  // 다음 회의까지: 약 1.5-3분
+        const DOOR_X=2+17*TS+TS/2, DOOR_Y=2+6*TS+TS/2
         agRef.current.forEach(ag=>{
-          if(ag.mode==='inMeet'||ag.mode==='toMeet'){ag.mode='fromMeet';ag.tx=ag.sx;ag.ty=ag.sy;ag.atMeet=false}
+          if(ag.mode==='inMeet'||ag.mode==='toMeet'){
+            ag.mode='fromMeet'; ag.tx=ag.sx; ag.ty=ag.sy; ag.atMeet=false; ag.wp=[]
+            // 오른쪽 회의실 → 왼쪽 사무실: 반드시 문 경유
+            if(ag.x > 2+17*TS && ag.sx < 2+17*TS) ag.wp=[{x:DOOR_X, y:DOOR_Y}]
+          }
         })
       }
 
@@ -685,17 +694,25 @@ export default function PixelOffice({activeAgentId}:Props){
             }
             break
           case 'ret': case 'fromMeet':
-            if(moveTo(ag.tx,ag.ty,1.8)){
-              ag.x=ag.sx;ag.y=ag.sy;ag.mode='sit';ag.dir='d';ag.wf=0;ag.timer=20+Math.random()*35
+            if(ag.wp.length>0){
+              if(moveTo(ag.wp[0].x,ag.wp[0].y,1.8)) ag.wp.shift()
+            } else {
+              if(moveTo(ag.tx,ag.ty,1.8)){
+                ag.x=ag.sx;ag.y=ag.sy;ag.mode='sit';ag.dir='d';ag.wf=0;ag.timer=20+Math.random()*35
+              }
             }
             break
           case 'toMeet':
-            if(moveTo(ag.tx,ag.ty,1.8)){
-              ag.mode='inMeet';ag.atMeet=true
-              // 좌석 방향 결정 (왼쪽 의자: 오른쪽 바라봄, 오른쪽 의자: 왼쪽 바라봄)
-              const ms=MEET_SEATS[ag.meetIdx%MEET_SEATS.length]
-              ag.dir=ms.side==='l'?'r':'l'
-              ag.bubble=MEET_SAY[Math.floor(Math.random()*MEET_SAY.length)];ag.bubbleT=60+Math.random()*60
+            if(ag.wp.length>0){
+              // 아직 경유지 남음 → 문으로 먼저 이동
+              if(moveTo(ag.wp[0].x,ag.wp[0].y,1.8)) ag.wp.shift()
+            } else {
+              if(moveTo(ag.tx,ag.ty,1.8)){
+                ag.mode='inMeet';ag.atMeet=true
+                const ms=MEET_SEATS[ag.meetIdx%MEET_SEATS.length]
+                ag.dir=ms.side==='l'?'r':'l'
+                ag.bubble=MEET_SAY[Math.floor(Math.random()*MEET_SAY.length)];ag.bubbleT=60+Math.random()*60
+              }
             }
             break
           case 'inMeet':
