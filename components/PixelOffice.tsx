@@ -91,7 +91,7 @@ const MEET_SEATS = [
   {tc:24,tr:3,side:'r'},{tc:24,tr:4,side:'r'},{tc:24,tr:5,side:'r'},
 ]
 
-function buildMap(agents:AgDef[]): TileT[][] {
+function buildMap(): TileT[][] {
   const m:TileT[][] = Array.from({length:ROWS},()=>Array(COLS).fill(TL.F) as TileT[])
 
   // 외벽
@@ -133,7 +133,7 @@ function buildMap(agents:AgDef[]): TileT[][] {
   })
 
   // ── 전략기획실장 (tc=16, tr=2) ──
-  m[2][16]=TL.DK; m[2][17]=TL.MN; m[3][16]=TL.CH
+  m[2][16]=TL.DK; m[2][17]=TL.MN; m[3][16]=TL.CH;  // ← 세미콜론 필수!
 
   // ── 하단 3팀 ──
   // 수익화팀 (tc=4, tr=11), 자동화팀 (tc=9, tr=11), 데이터팀 (tc=14, tr=11)
@@ -200,7 +200,7 @@ export default function PixelOffice({activeAgentId}:Props){
     const s=loadData<AppSettings>('nk_settings',DEFAULT_SETTINGS)
     setRef.current=s
     const allDefs:AgDef[]=BASE.map((d,i)=>({...d,seat:SEATS[i]||SEATS[0]}))
-    mapRef.current=buildMap(allDefs)
+    mapRef.current=buildMap()
     agRef.current=allDefs.map((def,i)=>{
       const seat=SEATS[i]||SEATS[0]
       const sx = i===0 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
