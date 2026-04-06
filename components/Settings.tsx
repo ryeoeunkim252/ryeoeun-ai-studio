@@ -230,10 +230,18 @@ export default function Settings() {
                     {/* 아이콘 */}
                     <span style={{ fontSize: 16, width: 22, flexShrink: 0 }}>{getIcon(id)}</span>
 
-                    {/* 이름 */}
-                    <input value={getName(id)} onChange={e => updateName(id, e.target.value)}
-                      className="px-2 py-1 rounded-lg text-[12px] font-medium outline-none flex-1 min-w-0"
-                      style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                    {/* 이름 + 역할/설명 */}
+                    <div className="flex-1 min-w-0">
+                      <input value={getName(id)} onChange={e => updateName(id, e.target.value)}
+                        className="w-full px-2 py-1 rounded-lg text-[12px] font-medium outline-none"
+                        style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                      {!isEditing && (
+                        <div className="mt-1 px-1">
+                          <p className="text-[10px] font-medium" style={{ color: 'var(--blush)' }}>{getRole(id)}</p>
+                          <p className="text-[10px]" style={{ color: 'var(--muted)' }}>{getDesc(id)}</p>
+                        </div>
+                      )}
+                    </div>
 
                     {/* 모델 선택 */}
                     <div className="flex items-center gap-1 flex-shrink-0">
