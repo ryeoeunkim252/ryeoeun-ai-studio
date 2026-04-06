@@ -12,7 +12,7 @@ const TS = 32          // 타일 크기
 const COLS = 28
 const ROWS = 16
 const CW = 898
-const CH = 518
+const CH_PX = 518
 const CP = 3           // 캐릭터 픽셀 1개 = 3 캔버스 픽셀
 const CG_W = 9         // 캐릭터 그리드 가로
 const CG_H = 18        // 캐릭터 그리드 세로
@@ -921,9 +921,9 @@ export default function PixelOffice({ activeAgentId }: Props) {
 
       // WASD 힌트 (작게)
       ctx.fillStyle='rgba(20,10,50,0.6)'
-      ctx.fillRect(8, CH-24, 130, 16)
+      ctx.fillRect(8, CH_PX-24, 130, 16)
       ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='8px monospace'
-      ctx.fillText('AI 오피스 · 자동 시뮬레이션', 12, CH-12)
+      ctx.fillText('AI 오피스 · 자동 시뮬레이션', 12, CH_PX-12)
 
       animId=requestAnimationFrame(loop)
     }
@@ -935,7 +935,7 @@ export default function PixelOffice({ activeAgentId }: Props) {
     <canvas
       ref={cvRef}
       width={CW}
-      height={CH}
+      height={CH_PX}
       style={{
         imageRendering:'pixelated', display:'block', maxWidth:'100%',
         borderRadius:10, border:'1.5px solid #ccc0b0',
