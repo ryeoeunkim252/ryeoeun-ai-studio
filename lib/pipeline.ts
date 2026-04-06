@@ -14,6 +14,9 @@ export interface ParsedPipeline {
 }
 
 const AGENT_KEYWORDS: Record<string, AgentId> = {
+  // ── 비서 ──────────────────────────────────────────────────
+  '@비서':      'secretary',
+
   // ── 기존 키워드 (호환성 유지) ──────────────────────
   '@web':      'web',
   '@웹':       'web',

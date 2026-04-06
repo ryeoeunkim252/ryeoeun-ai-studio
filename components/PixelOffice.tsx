@@ -57,6 +57,8 @@ interface AgDef {
 // ══════════════════════════════════════════════════════════
 
 const BASE:Omit<AgDef,'seat'>[] = [
+  // 비서 - 회의실 하단 전용 자리
+  {id:'secretary',       name:'CEO 비서',   sitDir:'d', hair:'#6030a0',skin:'#f8e0f8',shirt:'#9060c0',pants:'#4020a0',shoes:'#180830',accent:'#c080ff'},
   // 총괄실장 - 상단 중앙 빅 데스크
   {id:'router',          name:'총괄실장',    sitDir:'d', hair:'#18103a',skin:'#f4c890',shirt:'#1e3a6a',pants:'#0f1f38',shoes:'#08080e',accent:'#ff7070'},
   // 콘텐츠팀 4명 - 좌상단 2x2 배치, 아래 바라봄
@@ -73,6 +75,7 @@ const BASE:Omit<AgDef,'seat'>[] = [
 ]
 
 const SEATS:{tc:number;tr:number}[] = [
+  {tc:22, tr:11}, // 비서 (회의실 하단, 소파 위쪽)
   {tc:10, tr:2},  // 총괄실장 (빅데스크 중심, 상단 중앙)
   // 콘텐츠 2x2 - 좌상단, 벽에서 떨어진 cols 2,5
   {tc:2,  tr:2},  // 콘텐츠팀장 (2x2 좌상)
@@ -155,6 +158,10 @@ function buildMap(): TileT[][] {
   m[1][22]=TL.CH; m[1][23]=TL.CH
   m[7][22]=TL.CH; m[7][23]=TL.CH
   m[9][20]=TL.SF_A; m[9][21]=TL.SF; m[9][22]=TL.SF; m[9][23]=TL.SF; m[9][24]=TL.SF_A
+  // ── 비서 전용 책상 (회의실 하단) ──
+  m[11][22]=TL.DK; m[11][23]=TL.MN  // 책상 + 모니터
+  m[12][22]=TL.CH                    // 의자
+  m[11][25]=TL.PL                    // 옆 화분
   m[ROWS-2][22]=TL.PL; m[ROWS-2][25]=TL.PL
   m[0][3]=TL.FR; m[0][10]=TL.FR; m[0][15]=TL.FR; m[0][21]=TL.FR; m[0][25]=TL.FR
 
@@ -162,6 +169,7 @@ function buildMap(): TileT[][] {
 }
 
 const WORK_SAY:Record<string,string[]> = {
+  secretary:       ['일정 정리 중','할일 업데이트','메모 작성 중','대표님 보조 중'],
   router:          ['전략 수립 중','업무 배분 중','보고서 검토','일정 조율 중'],
   research:        ['시장 분석 중','트렌드 탐색','기획서 작성','경쟁사 분석'],
   content:         ['콘텐츠 기획','팀 조율 중','브리프 작성','방향 설정 중'],
@@ -203,7 +211,7 @@ export default function PixelOffice({activeAgentId}:Props){
     mapRef.current=buildMap()
     agRef.current=allDefs.map((def,i)=>{
       const seat=SEATS[i]||SEATS[0]
-      const sx = i===0 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
+      const sx = i===1 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
       const sy = 2+(seat.tr+1)*TS+TS/2+4
       const pool=WORK_SAY[def.id]||WORK_SAY.ops
       return{def,x:sx,y:sy,sx,sy,tx:sx,ty:sy,mode:'sit' as AgMode,

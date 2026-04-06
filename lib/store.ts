@@ -96,12 +96,13 @@ export interface AppSettings {
 
 // ── 스튜디오 상수 ──────────────────────────────────────────────
 export const STUDIO_NAME = '김려은의 AI 사무실'
-export const PAGE_TITLE  = 'RYEOEUN AI STUDIO'
+export const PAGE_TITLE  = 'NOVERRA AI STUDIO'
 export const USER_NAME   = 'RYEO EUN KIM'
 
 // ── 기본 설정 (새 조직도 반영) ─────────────────────────────────
 export const DEFAULT_SETTINGS: AppSettings = {
   agentNames: {
+    secretary: 'CEO 비서',
     router:   '총괄실장',
     research: '전략기획실장',
     content:  '콘텐츠팀장',
