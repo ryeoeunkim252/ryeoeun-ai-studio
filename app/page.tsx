@@ -11,16 +11,15 @@ const PixelOffice = dynamic(() => import('@/components/PixelOffice'), { ssr: fal
 type Page = 'dashboard' | 'office' | 'tasks' | 'chat' | 'settings' | 'saved' | 'command'
 const AGENT_ICONS: Record<string, string> = { router: '🔀', web: '🌐', content: '✍️', edu: '📚', research: '🔬', ops: '🚀' }
 const AGENT_ACCENT: Record<string, string> = { router: 'var(--blush)', web: 'var(--olive)', content: 'var(--copper)', edu: 'var(--blush)', research: 'var(--olive)', ops: 'var(--copper)' }
-const NAV = [
+const ALL_NAV = [
   { id: 'dashboard' as Page, icon: '📊', label: '대시보드' },
-  { id: 'office' as Page, icon: '🏢', label: 'AI 오피스' },
-  { id: 'tasks' as Page, icon: '📋', label: '작업 관리' },
-  { id: 'chat' as Page, icon: '💬', label: '팀 채팅' },
-  { id: 'saved' as Page, icon: '⭐', label: '저장 자료' },
-  { id: 'settings' as Page, icon: '⚙️', label: '설정' },
-  { id: 'command' as Page, icon: '👑', label: '본부' },
+  { id: 'office'    as Page, icon: '🏢', label: 'AI 오피스' },
+  { id: 'tasks'     as Page, icon: '📋', label: '작업 관리' },
+  { id: 'chat'      as Page, icon: '💬', label: '팀 채팅' },
+  { id: 'saved'     as Page, icon: '⭐', label: '저장 자료' },
+  { id: 'settings'  as Page, icon: '⚙️', label: '설정' },
+  { id: 'command'   as Page, icon: '👑', label: '본부' },
 ]
-// ✅ 어떤 브라우저에서든 Apple 스타일 토끼로 고정
 const RabbitEmoji = ({ size = 40 }: { size?: number }) => (
   <img src="/rabbit.png" alt="🐰" width={size} height={size} style={{ display: 'inline-block', verticalAlign: 'middle', imageRendering: 'auto' }} />
 )
@@ -55,21 +54,26 @@ export default function Home() {
   const [savedLogs, setSavedLogs] = useState<ExtChatLog[]>([])
   const [customTeams, setCustomTeams] = useState<CustomTeam[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [syncing, setSyncing] = useState(true) // ✅ 동기화 상태
-  // 팀별 필터 상태
+  const [syncing, setSyncing] = useState(true)
   const [chatFilter, setChatFilter] = useState<string | null>(null)
   const [savedFilter, setSavedFilter] = useState<string | null>(null)
-  // ✅ 앱 시작 시 클라우드에서 자동 동기화
+  const [NAV, setNAV] = useState(ALL_NAV)
   useEffect(() => {
     const init = async () => {
       setSyncing(true)
-      // 클라우드에서 localStorage로 동기화
       await syncFromCloud()
-      // 동기화 후 데이터 로드
       setSettings(loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS))
       setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
       setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
       setCustomTeams(loadData<CustomTeam[]>('nk_custom_teams', []))
+      const savedNavOrder = loadData<string[]>('nk_nav_order', [])
+      if (savedNavOrder.length > 0) {
+        const sorted = [
+          ...savedNavOrder.map(id => ALL_NAV.find(n => n.id === id)).filter(Boolean) as typeof ALL_NAV,
+          ...ALL_NAV.filter(n => !savedNavOrder.includes(n.id)),
+        ]
+        setNAV(sorted)
+      }
       setSyncing(false)
     }
     init()
@@ -120,7 +124,6 @@ export default function Home() {
     const teamEnabled = loadData<Record<string, boolean>>('nk_team_enabled', {
       router: true, web: true, content: true, edu: true, research: true, ops: true,
     })
-    // ✅ MCP 설정 로드
     const mcpEnabled = loadData<Record<string, boolean>>('nk_mcp', {})
     const mcpTeams = loadData<Record<string, string[]>>('nk_mcp_teams', {})
     const agentMsgId = crypto.randomUUID()
@@ -130,8 +133,7 @@ export default function Home() {
     ])
     try {
       const res = await fetch('/api/pipeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, teamModels, teamEnabled, mcpEnabled, mcpTeams }),
       })
       if (!res.ok || !res.body) throw new Error()
@@ -166,7 +168,6 @@ export default function Home() {
       setActiveAgentId(null)
     } finally { setLoading(false) }
   }
-  // 팀별 사이드바 컴포넌트
   const TeamSidebar = ({ logList, filter, setFilter, onNew }: { logList: ExtChatLog[]; filter: string | null
     setFilter: (v: string | null) => void; onNew?: () => void }) => {
     const counts = getTeamCounts(logList)
@@ -176,9 +177,7 @@ export default function Home() {
       <div className="w-[160px] flex-shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--card)', borderRight: '1px solid var(--border)' }}>
         <div className="px-3 py-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <span className="text-[12px] font-semibold" style={{ color: 'var(--text)' }}>대화 목록</span>
-          {onNew && (
-            <button onClick={onNew} className="w-6 h-6 rounded-lg flex items-center justify-center text-[14px]" style={{ background: 'var(--blush)', color: '#fff' }}>＋</button>
-          )}
+          {onNew && <button onClick={onNew} className="w-6 h-6 rounded-lg flex items-center justify-center text-[14px]" style={{ background: 'var(--blush)', color: '#fff' }}>＋</button>}
         </div>
         <button onClick={() => setFilter(null)} className="flex items-center gap-2 px-3 py-2.5 text-left transition-all"
           style={{ background: filter === null ? 'var(--blush-l)' : 'transparent', borderLeft: `3px solid ${filter === null ? 'var(--blush)' : 'transparent'}` }}>
@@ -191,17 +190,14 @@ export default function Home() {
           {teamsWithLogs.length === 0 ? (
             <p className="text-[11px] text-center mt-4" style={{ color: 'var(--muted)' }}>대화 없음</p>
           ) : teamsWithLogs.map(id => {
-            const count = counts[id] || 0
-            const name = getAgentName(id)
-            const icon = getIcon(id)
             const isSelected = filter === id
             return (
               <button key={id} onClick={() => setFilter(id)} className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition-all"
                 style={{ background: isSelected ? 'var(--blush-l)' : 'transparent', borderLeft: `3px solid ${isSelected ? 'var(--blush)' : 'transparent'}` }}>
-                <span style={{ fontSize: 13 }}>{icon}</span>
-                <span className="text-[11px] flex-1 truncate" style={{ color: isSelected ? 'var(--blush)' : 'var(--text2)', fontWeight: isSelected ? 600 : 400 }}>{name}</span>
+                <span style={{ fontSize: 13 }}>{getIcon(id)}</span>
+                <span className="text-[11px] flex-1 truncate" style={{ color: isSelected ? 'var(--blush)' : 'var(--text2)', fontWeight: isSelected ? 600 : 400 }}>{getAgentName(id)}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0"
-                  style={{ background: isSelected ? 'var(--blush)' : 'var(--bg2)', color: isSelected ? '#fff' : 'var(--muted)' }}>{count}</span>
+                  style={{ background: isSelected ? 'var(--blush)' : 'var(--bg2)', color: isSelected ? '#fff' : 'var(--muted)' }}>{counts[id]}</span>
               </button>
             )
           })}
@@ -224,47 +220,31 @@ export default function Home() {
           )}
           <span style={{ fontSize: 14 }}>{getIcon(log.agentId)}</span>
           <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>{getAgentName(log.agentId, log.agentName)}</span>
-          {log.modelName && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
-              {shortModel(log.modelName)}
-            </span>
-          )}
+          {log.modelName && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>{shortModel(log.modelName)}</span>}
           <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString('ko-KR')}</span>
-          <button onClick={e => { e.stopPropagation(); saveLog(log) }} className="text-[11px] px-2 py-1 rounded-lg"
-            style={{ background: 'var(--olive-l)', color: 'var(--olive)', border: '1px solid var(--olive-b)' }}>
-            ⭐ 저장
-          </button>
+          <button onClick={e => { e.stopPropagation(); saveLog(log) }} className="text-[11px] px-2 py-1 rounded-lg" style={{ background: 'var(--olive-l)', color: 'var(--olive)', border: '1px solid var(--olive-b)' }}>⭐ 저장</button>
         </div>
         <p className="text-[12px] mb-2 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>나 {log.userText}</p>
-        <p className="text-[12px] px-3 py-2 rounded-xl" style={{ background: 'var(--bg2)', color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>
-          {cleanText(log.result)}
-        </p>
+        <p className="text-[12px] px-3 py-2 rounded-xl" style={{ background: 'var(--bg2)', color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>{cleanText(log.result)}</p>
       </div>
     )
   }
-  // ✅ 동기화 중 로딩 화면
   if (syncing) {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4" style={{ background: 'var(--bg)' }}>
         <div className="text-4xl animate-bounce"><RabbitEmoji size={48} /></div>
         <p className="text-[14px]" style={{ color: 'var(--muted)' }}>클라우드에서 데이터 불러오는 중...</p>
-        <div className="flex gap-1">
-          {[0,1,2].map(i => (
-            <span key={i} className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--blush)', animationDelay: `${i*0.15}s` }} />
-          ))}
-        </div>
+        <div className="flex gap-1">{[0,1,2].map(i => <span key={i} className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--blush)', animationDelay: `${i*0.15}s` }} />)}</div>
       </div>
     )
   }
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
-      {/* 상단 배너 */}
       <div className="flex items-center justify-center gap-2 py-2 flex-shrink-0 text-[12px] font-medium"
         style={{ background: 'linear-gradient(90deg,#201018,#3d1020,#201018)', color:'#f5ede8', borderBottom:'1px solid var(--sidebar-b)' }}>
         <span style={{ color: 'var(--blush)' }}>✦</span>{STUDIO_NAME}<span style={{ color: 'var(--copper)' }}>✦</span>
       </div>
       <div className="flex flex-1 overflow-hidden" style={{ display: 'grid', gridTemplateColumns: '180px 1fr 270px' }}>
-        {/* 사이드바 */}
         <aside className="flex flex-col overflow-hidden" style={{ background: 'var(--sidebar)', borderRight: '1px solid var(--sidebar-b)' }}>
           <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--sidebar-b)' }}>
             <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--blush)', color: '#fff' }}><RabbitEmoji size={24} /></div>
@@ -333,7 +313,6 @@ export default function Home() {
             </div>
           </div>
         </aside>
-        {/* 메인 */}
         <div className="flex flex-col min-w-0 overflow-hidden" style={{ background: 'var(--bg2)' }}>
           <div className="px-5 py-3 flex items-center gap-3 flex-shrink-0" style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 18 }}>{NAV.find(n => n.id === page)?.icon}</span>
@@ -355,7 +334,6 @@ export default function Home() {
           {page === 'tasks' && <TaskManager />}
           {page === 'command' && <CommandCenter />}
           {page === 'settings' && <Settings />}
-          {/* 팀 채팅 */}
           {page === 'chat' && (
             <div className="flex flex-1 overflow-hidden">
               <TeamSidebar logList={logs} filter={chatFilter} setFilter={setChatFilter} onNew={() => { setMessages([]); setChatFilter(null) }} />
@@ -365,36 +343,22 @@ export default function Home() {
                     <h2 className="text-[18px] font-semibold" style={{ color: 'var(--text)' }}>
                       {chatFilter ? `${getIcon(chatFilter)} ${getAgentName(chatFilter)}` : '💬 전체 대화'}
                     </h2>
-                    {chatFilter && (
-                      <button onClick={() => setChatFilter(null)} className="text-[11px] px-2 py-1 rounded-lg"
-                        style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
-                        ✕ 전체 보기
-                      </button>
-                    )}
+                    {chatFilter && <button onClick={() => setChatFilter(null)} className="text-[11px] px-2 py-1 rounded-lg" style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>✕ 전체 보기</button>}
                   </div>
                   <div className="flex gap-2">
-                    {selectedIds.size > 0 && (
-                      <button onClick={deleteSelected} className="text-[12px] px-3 py-1.5 rounded-xl" style={{ background: 'var(--blush)', color: '#fff' }}>🗑️ 선택 삭제 ({selectedIds.size})</button>
-                    )}
-                    {logs.length > 0 && (
-                      <button onClick={clearAllMessages} className="text-[12px] px-3 py-1.5 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>전체 삭제</button>
-                    )}
+                    {selectedIds.size > 0 && <button onClick={deleteSelected} className="text-[12px] px-3 py-1.5 rounded-xl" style={{ background: 'var(--blush)', color: '#fff' }}>🗑️ 선택 삭제 ({selectedIds.size})</button>}
+                    {logs.length > 0 && <button onClick={clearAllMessages} className="text-[12px] px-3 py-1.5 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>전체 삭제</button>}
                   </div>
                 </div>
                 {(chatFilter ? logs.filter(l => l.agentId === chatFilter) : logs).length === 0 ? (
                   <div className="m-auto text-center py-20">
                     <div style={{ marginBottom: 12 }}><RabbitEmoji size={48} /></div>
-                    <p style={{ color: 'var(--muted)', fontSize: 14 }}>
-                      {chatFilter ? `${getAgentName(chatFilter)} 팀의 대화가 없어요` : '아직 대화 기록이 없어요'}
-                    </p>
+                    <p style={{ color: 'var(--muted)', fontSize: 14 }}>{chatFilter ? `${getAgentName(chatFilter)} 팀의 대화가 없어요` : '아직 대화 기록이 없어요'}</p>
                   </div>
-                ) : (chatFilter ? logs.filter(l => l.agentId === chatFilter) : logs).slice().reverse().map(log => (
-                  <LogCard key={log.id} log={log} selectable />
-                ))}
+                ) : (chatFilter ? logs.filter(l => l.agentId === chatFilter) : logs).slice().reverse().map(log => <LogCard key={log.id} log={log} selectable />)}
               </div>
             </div>
           )}
-          {/* 저장 자료 */}
           {page === 'saved' && (
             <div className="flex flex-1 overflow-hidden">
               <TeamSidebar logList={savedLogs} filter={savedFilter} setFilter={setSavedFilter} />
@@ -403,19 +367,12 @@ export default function Home() {
                   <h2 className="text-[18px] font-semibold" style={{ color: 'var(--text)' }}>
                     {savedFilter ? `${getIcon(savedFilter)} ${getAgentName(savedFilter)}` : '⭐ 전체 저장 자료'}
                   </h2>
-                  {savedFilter && (
-                    <button onClick={() => setSavedFilter(null)} className="text-[11px] px-2 py-1 rounded-lg"
-                      style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
-                      ✕ 전체 보기
-                    </button>
-                  )}
+                  {savedFilter && <button onClick={() => setSavedFilter(null)} className="text-[11px] px-2 py-1 rounded-lg" style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>✕ 전체 보기</button>}
                 </div>
                 {(savedFilter ? savedLogs.filter(l => l.agentId === savedFilter) : savedLogs).length === 0 ? (
                   <div className="m-auto text-center py-20">
                     <div style={{ marginBottom: 12 }}><RabbitEmoji size={48} /></div>
-                    <p style={{ color: 'var(--muted)', fontSize: 14 }}>
-                      {savedFilter ? `${getAgentName(savedFilter)} 팀의 저장 자료가 없어요` : '저장된 자료가 없어요'}
-                    </p>
+                    <p style={{ color: 'var(--muted)', fontSize: 14 }}>{savedFilter ? `${getAgentName(savedFilter)} 팀의 저장 자료가 없어요` : '저장된 자료가 없어요'}</p>
                     {!savedFilter && <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8 }}>팀 채팅에서 ⭐ 저장 버튼을 눌러보세요!</p>}
                   </div>
                 ) : (savedFilter ? savedLogs.filter(l => l.agentId === savedFilter) : savedLogs).slice().reverse().map(log => (
@@ -423,14 +380,9 @@ export default function Home() {
                     <div className="flex items-center gap-2 mb-2">
                       <span style={{ fontSize: 14 }}>{getIcon(log.agentId)}</span>
                       <span className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>{getAgentName(log.agentId, log.agentName)}</span>
-                      {log.modelName && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
-                          {shortModel(log.modelName)}
-                        </span>
-                      )}
+                      {log.modelName && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>{shortModel(log.modelName)}</span>}
                       <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString('ko-KR')}</span>
-                      <button onClick={() => deleteSaved(log.id)} className="text-[11px] px-2 py-1 rounded-lg"
-                        style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>🗑️ 삭제</button>
+                      <button onClick={() => deleteSaved(log.id)} className="text-[11px] px-2 py-1 rounded-lg" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>🗑️  삭제</button>
                     </div>
                     <p className="text-[12px] mb-2 px-3 py-2 rounded-xl" style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>나 {log.userText}</p>
                     <p className="text-[12px] px-3 py-2 rounded-xl" style={{ background: 'var(--bg2)', color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>{cleanText(log.result)}</p>
@@ -443,7 +395,6 @@ export default function Home() {
             <span className="text-[10px]" style={{ color: 'var(--muted)' }}>✦ {STUDIO_NAME}</span>
           </div>
         </div>
-        {/* 오른쪽 채팅 패널 */}
         <div className="flex flex-col overflow-hidden" style={{ background: 'var(--blush-l)', borderLeft: '1px solid var(--blush-b)', height: '100%' }}>
           <div className="px-4 py-3.5 flex-shrink-0" style={{ background: 'var(--sidebar)', borderBottom: '1px solid var(--sidebar-b)' }}>
             <div className="text-[14px] font-semibold" style={{ color: '#ffffff' }}>🎯 팀 커뮤니케이션</div>
@@ -454,15 +405,9 @@ export default function Home() {
               <div className="m-auto text-center px-3">
                 <div style={{ marginBottom: 10 }}><RabbitEmoji size={40} /></div>
                 <p className="text-[13px] font-medium mb-4" style={{ color: 'var(--text)' }}>대표님, 무엇을 도와드릴까요? 🔥</p>
-                {[
-                  { e: '✍️', t: '블로그 제목 5개 추천해줘' },
-                  { e: '🌐', t: '@web 랜딩 페이지 기획해줘' },
-                  { e: '🔬', t: '@research AI 트렌드 분석해줘' },
-                ].map((ex, i) => (
+                {[{ e: '✍️', t: '블로그 제목 5개 추천해줘' }, { e: '🌐', t: '@web 랜딩 페이지 기획해줘' }, { e: '🔬', t: '@research AI 트렌드 분석해줘' }].map((ex, i) => (
                   <button key={i} onClick={() => setInput(ex.t)} className="w-full text-[12px] px-3 py-2.5 rounded-xl text-left mb-2"
-                    style={{ background: '#fff', color: 'var(--text2)', border: '1px solid var(--blush-b)' }}>
-                    {ex.e} {ex.t}
-                  </button>
+                    style={{ background: '#fff', color: 'var(--text2)', border: '1px solid var(--blush-b)' }}>{ex.e} {ex.t}</button>
                 ))}
               </div>
             )}
@@ -478,20 +423,14 @@ export default function Home() {
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <span style={{ fontSize: 13 }}>{msg.agentId ? AGENT_ICONS[msg.agentId] : '⏳'}</span>
                       <span style={{ color: getAccent(msg.agentId), fontWeight: 500 }}>{getAgentName(msg.agentId, msg.agentName)}</span>
-                      {msg.modelName && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>
-                          {shortModel(msg.modelName)}
-                        </span>
-                      )}
+                      {msg.modelName && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--blush-l)', color: 'var(--blush)', border: '1px solid var(--blush-b)' }}>{shortModel(msg.modelName)}</span>}
                       <span className="ml-auto" style={{ color: 'var(--muted)' }}>{msg.time}</span>
                     </div>
                     <div className="text-[13px] px-3.5 py-2.5 rounded-2xl rounded-tl-sm leading-relaxed"
                       style={{ background: '#fff', color: 'var(--text)', border: `1.5px solid ${getAccent(msg.agentId)}40`, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                       {msg.content ? cleanText(msg.content) : (
                         <span className="inline-flex gap-1 items-center">
-                          {[0,1,2].map(i => (
-                            <span key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--blush-b)', animationDelay: `${i*0.15}s` }} />
-                          ))}
+                          {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--blush-b)', animationDelay: `${i*0.15}s` }} />)}
                         </span>
                       )}
                     </div>
@@ -501,18 +440,10 @@ export default function Home() {
             ))}
           </div>
           <div className="px-3 py-2 flex gap-1.5 flex-wrap flex-shrink-0" style={{ borderTop: '1px solid var(--blush-b)', background: '#fff' }}>
-            {[
-              { k: '@web', c: 'var(--olive)', bg: 'var(--olive-l)', b: 'var(--olive-b)' },
-              { k: '@research', c: 'var(--copper)', bg: 'var(--copper-l)', b: 'var(--copper-b)' },
-              { k: '@content', c: 'var(--blush)', bg: 'var(--blush-l)', b: 'var(--blush-b)' },
-              { k: '@edu', c: 'var(--olive)', bg: 'var(--olive-l)', b: 'var(--olive-b)' },
-              { k: '@ops', c: 'var(--copper)', bg: 'var(--copper-l)', b: 'var(--copper-b)' },
-            ].map(({ k, c, bg, b }) => (
-              <button key={k} onClick={() => setInput(v => v + k + ' ')} className="text-[10px] px-2.5 py-1 rounded-full"
-                style={{ background: bg, color: c, border: `1px solid ${b}` }}>{k}</button>
+            {[{ k: '@web', c: 'var(--olive)', bg: 'var(--olive-l)', b: 'var(--olive-b)' }, { k: '@research', c: 'var(--copper)', bg: 'var(--copper-l)', b: 'var(--copper-b)' }, { k: '@content', c: 'var(--blush)', bg: 'var(--blush-l)', b: 'var(--blush-b)' }, { k: '@edu', c: 'var(--olive)', bg: 'var(--olive-l)', b: 'var(--olive-b)' }, { k: '@ops', c: 'var(--copper)', bg: 'var(--copper-l)', b: 'var(--copper-b)' }].map(({ k, c, bg, b }) => (
+              <button key={k} onClick={() => setInput(v => v + k + ' ')} className="text-[10px] px-2.5 py-1 rounded-full" style={{ background: bg, color: c, border: `1px solid ${b}` }}>{k}</button>
             ))}
-            <button onClick={() => setInput(v => v + ' >> ')} className="text-[10px] px-2.5 py-1 rounded-full"
-              style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>&gt;&gt;</button>
+            <button onClick={() => setInput(v => v + ' >> ')} className="text-[10px] px-2.5 py-1 rounded-full" style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>&gt;&gt;</button>
           </div>
           <div className="p-3 flex gap-2 flex-shrink-0" style={{ background: '#fff', borderTop: '1px solid var(--blush-b)' }}>
             <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
