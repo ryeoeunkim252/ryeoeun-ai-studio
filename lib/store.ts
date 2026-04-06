@@ -103,11 +103,11 @@ export const USER_NAME   = 'RYEO EUN KIM'
 export const DEFAULT_SETTINGS: AppSettings = {
   agentNames: {
     router:   '총괄실장',
-    content:  '콘텐츠팀장',
-    research: '전략실장',
-    ops:      '자동화팀장',
-    web:      '수익화팀장',
-    edu:      '데이터팀장',
+    research: '전략기획실',
+    content:  '콘텐츠팀',
+    web:      '수익화팀',
+    ops:      '자동화팀',
+    edu:      '데이터팀',
   },
   agentColors: {
     router:   '#c06080',

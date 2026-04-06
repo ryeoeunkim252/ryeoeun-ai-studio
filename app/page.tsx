@@ -39,7 +39,7 @@ const AGENT_ACCENT: Record<string, string> = {
 
 // ── 콘텐츠본부 서브팀 3개 (시각적 표기용) ────────────────────
 const CONTENT_SUB_TEAMS = [
-  { name: '콘텐츠팀',  icon: '✍️', desc: '기획·카피' },
+  { name: '기획팀',   icon: '✍️', desc: '기획·카피' },
   { name: '디자인팀',  icon: '🎨', desc: '썸네일·이미지' },
   { name: '채널운영팀', icon: '📱', desc: '인스타·블로그' },
 ]
@@ -112,12 +112,19 @@ export default function Home() {
       // ── 구 이름 → 신 이름 자동 마이그레이션 ──────────────────────
       // Supabase에 저장된 옛날 팀 이름을 새 조직도 이름으로 자동 교체
       const OLD_TO_NEW: Record<string, string> = {
+        // 1단계: 아주 옛날 이름
         '라우터':    '총괄실장',
-        '웹 팀':     '수익화팀장',
-        '콘텐츠 팀': '콘텐츠팀장',
-        '교육 팀':   '데이터팀장',
-        '연구 팀':   '전략실장',
-        '운영 팀':   '자동화팀장',
+        '웹 팀':     '수익화팀',
+        '콘텐츠 팀': '콘텐츠팀',
+        '교육 팀':   '데이터팀',
+        '연구 팀':   '전략기획실',
+        '운영 팀':   '자동화팀',
+        // 2단계: 중간 이름 (팀장 → 팀/기획실)
+        '전략실장':  '전략기획실',
+        '콘텐츠팀장':'콘텐츠팀',
+        '수익화팀장':'수익화팀',
+        '자동화팀장':'자동화팀',
+        '데이터팀장':'데이터팀',
       }
       const stored = loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS)
       const migratedNames = { ...stored.agentNames }
@@ -133,13 +140,25 @@ export default function Home() {
         : stored
       if (changed) await saveData('nk_settings', finalSettings)
       setSettings(finalSettings)
+
+      // ── 에이전트 순서도 리셋 (새 조직도 순서로) ──────────────
+      const CORRECT_ORDER = ['router', 'research', 'content', 'web', 'ops', 'edu']
+      const savedOrder = loadData<string[]>('nk_team_order', [])
+      const needsOrderReset = savedOrder.length === 0 ||
+        JSON.stringify(savedOrder.slice(0, 6)) !== JSON.stringify(CORRECT_ORDER)
+      if (needsOrderReset) {
+        await saveData('nk_team_order', CORRECT_ORDER)
+        setAgentOrder(CORRECT_ORDER)
+      }
       // ─────────────────────────────────────────────────────────────
       setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
       setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
       setCustomTeams(loadData<CustomTeam[]>('nk_custom_teams', []))
-      // ── 에이전트 순서 로드 ──────────────────────────────────────
+      // ── 에이전트 순서 로드 (마이그레이션에서 이미 처리됨) ────────
       const savedAgentOrder = loadData<string[]>('nk_team_order', [])
-      setAgentOrder(savedAgentOrder)
+      if (savedAgentOrder.length > 0 && agentOrder.length === 0) {
+        setAgentOrder(savedAgentOrder)
+      }
       // ── 메뉴 순서 로드 ──────────────────────────────────────────
       const savedNavOrder = loadData<string[]>('nk_nav_order', [])
       if (savedNavOrder.length > 0) {
@@ -366,7 +385,7 @@ export default function Home() {
         <span style={{ color:'var(--blush)' }}>✦</span>{STUDIO_NAME}<span style={{ color:'var(--copper)' }}>✦</span>
       </div>
 
-      <div className="flex flex-1 overflow-hidden" style={{ display:'grid',gridTemplateColumns:'180px 1fr 270px' }}>
+      <div className="flex flex-1 overflow-hidden" style={{ display:'grid',gridTemplateColumns:'210px 1fr 270px' }}>
 
         {/* ── 왼쪽 사이드바 ── */}
         <aside className="flex flex-col overflow-hidden" style={{ background:'var(--sidebar)',borderRight:'1px solid var(--sidebar-b)' }}>
@@ -419,8 +438,8 @@ export default function Home() {
                 >
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'animate-pulse' : ''}`}
                     style={{ background: isActive ? color : 'var(--blush-b)' }} />
-                  <span style={{ fontSize:13 }}>{AGENT_ICONS[agent.id]}</span>
-                  <span>{settings.agentNames[agent.id] || agent.name}</span>
+                  <span style={{ fontSize:13, flexShrink:0 }}>{AGENT_ICONS[agent.id]}</span>
+                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{settings.agentNames[agent.id] || agent.name}</span>
                   <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full" style={{
                     background: isActive ? color+'33' : 'transparent',
                     color: isActive ? color : 'var(--blush-b)',
@@ -465,8 +484,8 @@ export default function Home() {
                   style={{ background:isActive?'var(--sidebar-b)':'transparent', borderLeft:`2px solid ${isActive?color:'transparent'}`, color:isActive?color:'#ffffff' }}>
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive?'animate-pulse':''}`}
                     style={{ background:isActive?color:'var(--blush-b)' }} />
-                  <span style={{ fontSize:13 }}>{team.icon}</span>
-                  <span>{settings.agentNames[team.id] || team.name}</span>
+                  <span style={{ fontSize:13, flexShrink:0 }}>{team.icon}</span>
+                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{settings.agentNames[team.id] || team.name}</span>
                   <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full" style={{ background:isActive?color+'33':'transparent',color:isActive?color:'var(--blush-b)',fontWeight:isActive?700:400,border:isActive?`1px solid ${color}`:'none' }}>
                     {isActive ? '⚡업무중' : '대기'}
                   </span>
