@@ -67,9 +67,10 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-        {/* ── CEO + 비서 가로 배치 ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          {/* CEO 박스 */}
+        {/* ── CEO (중앙) + 비서 (오른쪽 float) ── */}
+        <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', marginBottom: 4 }}>
+
+          {/* CEO 박스 - 중앙 */}
           <div style={{
             background: 'linear-gradient(135deg, var(--blush) 0%, #c06080 100%)',
             borderRadius: 12, padding: '12px 36px', textAlign: 'center',
@@ -80,25 +81,30 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>방향 결정 · 최종 승인</div>
           </div>
 
-          {/* 연결선 */}
-          <div style={{ width: 20, height: 2, background: 'rgba(144,96,192,0.5)' }} />
-
-          {/* 비서 박스 */}
+          {/* 비서 박스 - 오른쪽에 붙어서 */}
           <div style={{
-            background: 'linear-gradient(135deg, rgba(144,96,192,0.15) 0%, rgba(144,96,192,0.05) 100%)',
-            border: '1.5px solid rgba(144,96,192,0.5)',
-            borderRadius: 10, padding: '10px 16px', textAlign: 'center',
-            position: 'relative',
+            position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+            display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            <div style={{ fontSize: 16, marginBottom: 2 }}>🪄</div>
-            <div style={{ fontWeight: 700, fontSize: 12, color: '#9060c0' }}>CEO 비서</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>스케줄 · 할일 · 업무보조</div>
+            {/* 연결 점선 */}
+            <div style={{ width: 28, height: 1.5, background: 'rgba(144,96,192,0.4)', borderTop: '1.5px dashed rgba(144,96,192,0.45)' }} />
+            {/* 비서 카드 */}
             <div style={{
-              position: 'absolute', top: -8, right: -6,
-              background: '#9060c0', color: '#fff',
-              borderRadius: 6, padding: '1px 6px',
-              fontSize: 8, fontWeight: 700,
-            }}>전담</div>
+              background: 'linear-gradient(135deg, rgba(144,96,192,0.12) 0%, rgba(144,96,192,0.04) 100%)',
+              border: '1.5px solid rgba(144,96,192,0.45)',
+              borderRadius: 10, padding: '8px 14px', textAlign: 'center',
+              position: 'relative', minWidth: 100,
+            }}>
+              <div style={{ fontSize: 14, marginBottom: 1 }}>🪄</div>
+              <div style={{ fontWeight: 700, fontSize: 11, color: '#9060c0' }}>CEO 비서</div>
+              <div style={{ fontSize: 9, color: 'var(--muted)' }}>스케줄 · 할일 · 업무보조</div>
+              <div style={{
+                position: 'absolute', top: -7, right: -5,
+                background: '#9060c0', color: '#fff',
+                borderRadius: 5, padding: '1px 5px',
+                fontSize: 7, fontWeight: 700,
+              }}>전담</div>
+            </div>
           </div>
         </div>
 

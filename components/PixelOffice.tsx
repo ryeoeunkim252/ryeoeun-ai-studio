@@ -146,9 +146,21 @@ function buildMap(): TileT[][] {
     if(s.tr+1<ROWS-2) m[s.tr+1][s.tc]=TL.CH
   })
 
-  // 장식 화분
-  m[ROWS-2][1]=TL.PL; m[ROWS-2][7]=TL.PL; m[ROWS-2][12]=TL.PL; m[ROWS-2][17]=TL.PL
-  m[11][17]=TL.PL; m[11][7]=TL.PL
+  // 장식 화분 (플랜테리어) ─────────────────────────────────────────
+  // 하단 벽 라인
+  m[ROWS-2][1]=TL.PL; m[ROWS-2][4]=TL.PL; m[ROWS-2][7]=TL.PL
+  m[ROWS-2][10]=TL.PL; m[ROWS-2][13]=TL.PL; m[ROWS-2][17]=TL.PL
+  // 중간 통로 양쪽
+  m[9][3]=TL.PL;  m[9][8]=TL.PL;  m[9][13]=TL.PL; m[9][17]=TL.PL
+  // 콘텐츠존 주변
+  m[3][7]=TL.PL;  m[6][7]=TL.PL
+  // 총괄실장 양옆
+  m[2][8]=TL.PL;  m[2][14]=TL.PL
+  // 코너 포인트
+  m[2][17]=TL.PL; m[5][17]=TL.PL
+  // 하단 팀 주변
+  m[11][2]=TL.PL; m[11][7]=TL.PL; m[11][12]=TL.PL
+  // ─────────────────────────────────────────────────────────────
 
   // 회의실
   m[1][20]=TL.TV; m[1][21]=TL.TV
@@ -158,11 +170,16 @@ function buildMap(): TileT[][] {
   m[1][22]=TL.CH; m[1][23]=TL.CH
   m[7][22]=TL.CH; m[7][23]=TL.CH
   m[9][20]=TL.SF_A; m[9][21]=TL.SF; m[9][22]=TL.SF; m[9][23]=TL.SF; m[9][24]=TL.SF_A
-  // ── 비서 전용 책상 (회의실 하단) ──
-  m[11][22]=TL.DK; m[11][23]=TL.MN  // 책상 + 모니터
-  m[12][22]=TL.CH                    // 의자
-  m[11][25]=TL.PL                    // 옆 화분
+  // 소파 옆 화분
+  m[9][COLS-2]=TL.PL; m[ROWS-2][26]=TL.PL
+
+  // ── 비서 전용 빅 데스크 (회의실 하단, 총괄실장처럼 크게) ──
+  m[11][21]=TL.BDK; m[11][22]=TL.BDK; m[11][23]=TL.BDK  // 빅 데스크 3칸
+  m[11][24]=TL.MN                                          // 모니터
+  m[12][22]=TL.CH; m[12][23]=TL.CH                        // 의자 2개
+  m[11][25]=TL.PL; m[11][20]=TL.PL                        // 양쪽 화분
   m[ROWS-2][22]=TL.PL; m[ROWS-2][25]=TL.PL
+
   m[0][3]=TL.FR; m[0][10]=TL.FR; m[0][15]=TL.FR; m[0][21]=TL.FR; m[0][25]=TL.FR
 
   return m
@@ -211,7 +228,8 @@ export default function PixelOffice({activeAgentId}:Props){
     mapRef.current=buildMap()
     agRef.current=allDefs.map((def,i)=>{
       const seat=SEATS[i]||SEATS[0]
-      const sx = i===1 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
+      // 비서는 빅 데스크 중심(tc=22), 총괄실장은 빅 데스크 중심(tc=10)
+      const sx = i===0 ? 2+22*TS+TS/2 : i===1 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
       const sy = 2+(seat.tr+1)*TS+TS/2+4
       const pool=WORK_SAY[def.id]||WORK_SAY.ops
       return{def,x:sx,y:sy,sx,sy,tx:sx,ty:sy,mode:'sit' as AgMode,
@@ -306,9 +324,10 @@ export default function PixelOffice({activeAgentId}:Props){
         ctx.beginPath();ctx.ellipse(cx-9*sc,oy+17*sc,4*sc,2.5*sc,0,0,Math.PI*2);ctx.fill()
         ctx.beginPath();ctx.ellipse(cx+9*sc,oy+17*sc,4*sc,2.5*sc,0,0,Math.PI*2);ctx.fill()
         if(isBoss){
-          // 왕관 이모지
+          // 총괄실장은 왕관, 비서는 마법봉
+          const bossEmoji = def.id==='secretary' ? '🪄' : '👑'
           ctx.font=`${14*sc}px serif`;ctx.textAlign='center'
-          ctx.fillText('👑',cx,oy-6*sc)
+          ctx.fillText(bossEmoji,cx,oy-6*sc)
         }
         if(isAct){
           const g=0.5+Math.sin(t*5)*0.35
@@ -643,7 +662,7 @@ export default function PixelOffice({activeAgentId}:Props){
       // 스프라이트 렌더
       const sprites:{y:number;draw:()=>void}[]=[]
       agRef.current.forEach(ag=>{
-        const isBoss=ag.def.id==='router'
+        const isBoss=ag.def.id==='router'||ag.def.id==='secretary'
         const isContentActive=actRef.current==='content'&&ag.def.id.startsWith('content')
         const isAct=actRef.current===ag.def.id||isContentActive
         const nm=s.agentNames?.[ag.def.id]||ag.def.name

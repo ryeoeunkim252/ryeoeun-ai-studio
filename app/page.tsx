@@ -19,6 +19,7 @@ type Page = 'dashboard' | 'office' | 'tasks' | 'chat' | 'settings' | 'saved' | '
 
 // ── 새 조직도 반영 아이콘 ────────────────────────────────────
 const AGENT_ICONS: Record<string, string> = {
+  secretary: '🪄',  // CEO 비서
   router:   '🔀',  // 총괄실장
   content:  '✍️',  // 콘텐츠팀장
   research: '📊',  // 전략실장
@@ -29,6 +30,7 @@ const AGENT_ICONS: Record<string, string> = {
 
 // ── 새 조직도 반영 색상 ──────────────────────────────────────
 const AGENT_ACCENT: Record<string, string> = {
+  secretary: '#9060c0',
   router:   '#c06080',
   content:  '#d85a30',
   research: '#1d9e75',
