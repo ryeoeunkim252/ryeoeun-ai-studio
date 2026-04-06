@@ -5,12 +5,7 @@ import { loadData, DEFAULT_SETTINGS, type AppSettings } from '@/lib/store'
 
 interface Props { activeAgentId?: AgentId | null }
 
-// ═══════════════════════════════════════════
-//  CONSTANTS
-// ═══════════════════════════════════════════
 const TS   = 32
-const SPW  = 16
-const SPH  = 24
 const COLS = 28
 const ROWS = 16
 const CANVAS_W = 898
@@ -31,18 +26,15 @@ const C = {
   dk:'#c49040', dkL:'#e0a848', dkD:'#9a7028', dkF:'#785018',
   mn:'#141428', mnS:'#0c1020', mnG:'#30c878',
   ch:['#7060a0','#5070a0','#906050','#708848','#806050','#507068'],
-  pl1:'#48b848', pl2:'#288028', pl3:'#185818',
+  pl1:'#48b848', pl2:'#288028',
   pot:'#b85028', potL:'#d87040',
   cp:'#403888', cpL:'#504898',
   mt:'#6a4018', mtL:'#9a6028', mtD:'#4a2a08',
   so:'#b82858', soL:'#d84070', soD:'#782038', soA:'#501028',
   wb:'#f0f0e8', wbB:'#787060',
   fr:['#c07830','#8038a0','#3868b0'],
-  // Player colors
-  pl_hair:'#2a1a0a', pl_skin:'#f4c890', pl_top:'#c03030', pl_bot:'#303060', pl_shoe:'#181818',
 }
 
-// ── Map ──────────────────────────────────────
 const {F,W,SH,SK,DK,MN,CH,PL,CP,DV,WB,MT,ME,SF,SA,FR,WT} = TL
 const BASE_MAP: number[][] = [
   [W, W, W, W, W, W, W, W,SK, W, W, W, W, W, W, W, W,DV, W,WB,WB,WB,WB,WB,WB, W, W, W],
@@ -65,29 +57,25 @@ const BASE_MAP: number[][] = [
 
 // ── Agent Definitions ───────────────────────
 const AGENT_DEF = [
-  {id:'router',  name:'총괄실장',hair:'#b0b0b8',skin:'#f4c890',top:'#1e3a5f',bot:'#101828',shoe:'#080810',acc:'tie',   accent:'#e08888',seat:{tc:2,tr:5}},
-  {id:'web',     name:'웹 팀',   hair:'#18a8c0',skin:'#f4c080',top:'#f8d838',bot:'#4050a8',shoe:'#202860',acc:'none',  accent:'#f8d838',seat:{tc:6,tr:5}},
-  {id:'content', name:'콘텐츠 팀',hair:'#482010',skin:'#f8d090',top:'#e05080',bot:'#281020',shoe:'#140808',acc:'ear',   accent:'#e05080',seat:{tc:10,tr:5}},
-  {id:'research',name:'연구 팀', hair:'#302010',skin:'#f4c080',top:'#e0e0e0',bot:'#284060',shoe:'#182030',acc:'glass', accent:'#4888d0',seat:{tc:2, tr:11}},
-  {id:'edu',     name:'교육 팀', hair:'#141414',skin:'#f4c080',top:'#488038',bot:'#202818',shoe:'#101210',acc:'none',  accent:'#58a048',seat:{tc:6, tr:11}},
-  {id:'ops',     name:'운영 팀', hair:'#0a0a0a',skin:'#c88858',top:'#286828',bot:'#181a18',shoe:'#060806',acc:'head',  accent:'#48a048',seat:{tc:10,tr:11}},
+  {id:'router',  name:'총괄실장', bodyColor:'#1e3a5f', headColor:'#f4c890', hatColor:'#c0392b', accessory:'tie',   accent:'#e74c3c', seat:{tc:2, tr:5}},
+  {id:'web',     name:'웹 팀',   bodyColor:'#2980b9', headColor:'#fde3a7', hatColor:'#f39c12', accessory:'crown', accent:'#f1c40f', seat:{tc:6, tr:5}},
+  {id:'content', name:'콘텐츠 팀',bodyColor:'#8e44ad', headColor:'#fad7a0', hatColor:'#e91e63', accessory:'bow',   accent:'#e91e63', seat:{tc:10,tr:5}},
+  {id:'research',name:'연구 팀',  bodyColor:'#27ae60', headColor:'#f0c896', hatColor:'#1abc9c', accessory:'glass', accent:'#2ecc71', seat:{tc:2, tr:11}},
+  {id:'edu',     name:'교육 팀',  bodyColor:'#d35400', headColor:'#fdebd0', hatColor:'#e67e22', accessory:'cap',   accent:'#f39c12', seat:{tc:6, tr:11}},
+  {id:'ops',     name:'운영 팀',  bodyColor:'#2c3e50', headColor:'#c8956c', hatColor:'#16a085', accessory:'none',  accent:'#1abc9c', seat:{tc:10,tr:11}},
 ]
 type AgDef = typeof AGENT_DEF[0]
 type CT = {id:string;icon:string;name:string}
 
-// ── Furniture inventory ──────────────────────
 const FURNITURE_ITEMS = [
-  { key:'desk',   label:'책상',  tile:DK, icon:'🖥️' },
-  { key:'chair',  label:'의자',  tile:CH, icon:'🪑' },
-  { key:'plant',  label:'화분',  tile:PL, icon:'🪴' },
-  { key:'carpet', label:'카펫',  tile:CP, icon:'🟪' },
-  { key:'sofa',   label:'소파',  tile:SF, icon:'🛋️' },
-  { key:'shelf',  label:'책장',  tile:SH, icon:'📚' },
+  { key:'desk',   label:'책상', tile:DK, icon:'🪑' },
+  { key:'chair',  label:'의자', tile:CH, icon:'💺' },
+  { key:'plant',  label:'화분', tile:PL, icon:'🌿' },
+  { key:'carpet', label:'카펫', tile:CP, icon:'🟪' },
+  { key:'sofa',   label:'소파', tile:SF, icon:'🛋️' },
+  { key:'shelf',  label:'책장', tile:SH, icon:'📚' },
 ]
 
-// ═══════════════════════════════════════════
-//  AGENT STATE TYPE
-// ═══════════════════════════════════════════
 type AgState = {
   def: AgDef
   x: number; y: number
@@ -100,7 +88,6 @@ type AgState = {
   walksLeft: number
 }
 
-// ── Player State ─────────────────────────────
 type PlayerState = {
   x: number; y: number
   dir: 'u'|'d'|'l'|'r'
@@ -108,9 +95,10 @@ type PlayerState = {
   moving: boolean
 }
 
-// ═══════════════════════════════════════════
-//  COMPONENT
-// ═══════════════════════════════════════════
+// ── 로블록스 스타일 캐릭터 크기 ─────────────
+const RW = 20   // character width
+const RH = 28   // character height
+
 export default function PixelOffice({ activeAgentId }: Props) {
   const cvRef   = useRef<HTMLCanvasElement>(null)
   const tick    = useRef(0)
@@ -119,10 +107,9 @@ export default function PixelOffice({ activeAgentId }: Props) {
   const ctRef   = useRef<CT[]>([])
   const agRef   = useRef<AgState[]>([])
   const mapRef  = useRef<number[][]>(BASE_MAP.map(r => [...r]))
-  const playerRef = useRef<PlayerState>({ x: 2+8*TS+SPW/2, y: 2+8*TS+SPH, dir:'d', frame:0, moving:false })
+  const playerRef = useRef<PlayerState>({ x: 2+8*TS+RW/2, y: 2+8*TS+RH, dir:'d', frame:0, moving:false })
   const keysRef = useRef<Set<string>>(new Set())
 
-  // UI state
   const [mode, setMode] = useState<'play'|'decorate'>('play')
   const [selectedTile, setSelectedTile] = useState<number>(CP)
   const [nearAgent, setNearAgent] = useState<string|null>(null)
@@ -137,19 +124,16 @@ export default function PixelOffice({ activeAgentId }: Props) {
     setRef.current = loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS)
     ctRef.current  = loadData<CT[]>('nk_custom_teams', [])
     agRef.current  = AGENT_DEF.map(def => {
-      const sx = 2 + def.seat.tc * TS + SPW/2
+      const sx = 2 + def.seat.tc * TS + RW/2
       const sy = 2 + def.seat.tr * TS + TS
       return { def, x:sx, y:sy, sx, sy, tx:sx, ty:sy, state:'sit', dir:'u', frame:0, timer:20+Math.random()*20, walksLeft:0 }
     })
   }, [])
 
-  // ── Keyboard input ───────────────────────
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       keysRef.current.add(e.key.toLowerCase())
-      if (e.key === 'f' || e.key === 'F') {
-        setMode(m => m === 'play' ? 'decorate' : 'play')
-      }
+      if (e.key === 'f' || e.key === 'F') setMode(m => m === 'play' ? 'decorate' : 'play')
     }
     const up = (e: KeyboardEvent) => { keysRef.current.delete(e.key.toLowerCase()) }
     window.addEventListener('keydown', down)
@@ -157,15 +141,12 @@ export default function PixelOffice({ activeAgentId }: Props) {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [])
 
-  // ── Canvas click for decorate mode ───────
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (modeRef.current !== 'decorate') return
     const cv = cvRef.current; if (!cv) return
     const rect = cv.getBoundingClientRect()
-    const scaleX = CANVAS_W / rect.width
-    const scaleY = CANVAS_H / rect.height
-    const mx = (e.clientX - rect.left) * scaleX
-    const my = (e.clientY - rect.top) * scaleY
+    const mx = (e.clientX - rect.left) * (CANVAS_W / rect.width)
+    const my = (e.clientY - rect.top) * (CANVAS_H / rect.height)
     const tc = Math.floor((mx - 2) / TS)
     const tr = Math.floor((my - 2) / TS)
     if (tc >= 0 && tc < COLS && tr >= 0 && tr < ROWS) {
@@ -176,14 +157,10 @@ export default function PixelOffice({ activeAgentId }: Props) {
     }
   }, [])
 
-  // ═══════════════════════════════════════
-  //  GAME LOOP
-  // ═══════════════════════════════════════
   useEffect(() => {
     const cv = cvRef.current; if (!cv) return
     const ctx = cv.getContext('2d')!
 
-    // ── helpers ───────────────────────────
     const r = (x:number,y:number,w:number,h:number,c:string) => {
       if(w<=0||h<=0) return
       ctx.fillStyle=c; ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))
@@ -208,7 +185,7 @@ export default function PixelOffice({ activeAgentId }: Props) {
       return {tx:tpx(8)+TS/2, ty:tpy(8)+TS/2}
     }
 
-    // ── tile renderers ────────────────────
+    // ── Tile renderers ──────────────────────
     const TILE_RENDER: Record<number,(x:number,y:number,tc:number,tr:number)=>void> = {
       [TL.F]: (x,y,tc,tr) => {
         r(x,y,TS,TS,(tc+tr)%2===0?C.fl:C.fl2)
@@ -216,11 +193,9 @@ export default function PixelOffice({ activeAgentId }: Props) {
       },
       [TL.CP]: (x,y) => {
         r(x,y,TS,TS,C.cp); r(x+3,y+3,TS-6,TS-6,C.cpL)
-        ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=0.8; ctx.strokeRect(x+5,y+5,TS-10,TS-10)
       },
       [TL.W]: (x,y) => {
         r(x,y,TS,TS,C.wl); r(x,y,TS,4,C.wlT); r(x,y+TS-3,TS,3,'rgba(0,0,0,0.25)')
-        ctx.strokeStyle='rgba(0,0,0,0.1)'; ctx.lineWidth=0.5; ctx.strokeRect(x,y,TS,TS)
       },
       [TL.WT]: (x,y) => { r(x,y,TS,TS,C.wlD) },
       [TL.SH]: (x,y,tc) => {
@@ -230,7 +205,6 @@ export default function PixelOffice({ activeAgentId }: Props) {
         for(let b=0;b<4;b++){
           const bh=10+(b%3)*3,bw=6
           r(bx,y+6,bw,bh,C.bk[(tc+b)%C.bk.length])
-          r(bx,y+6,1,bh,'rgba(255,255,255,0.3)')
           bx+=bw+2
         }
       },
@@ -249,31 +223,26 @@ export default function PixelOffice({ activeAgentId }: Props) {
       [TL.DK]: (x,y) => {
         r(x,y,TS,TS,C.dk); r(x,y,TS,3,C.dkL); r(x,y,3,TS,C.dkL)
         r(x+TS-3,y,3,TS,C.dkD); r(x,y+TS-4,TS,4,C.dkF)
-        r(x,y+TS,TS,6,C.dkD); r(x+4,y+TS+6,7,14,C.dkD); r(x+TS-11,y+TS+6,7,14,C.dkD)
       },
       [TL.MN]: (x,y) => {
         r(x,y,TS,TS,(Math.round(x/TS)+Math.round(y/TS))%2===0?C.fl:C.fl2)
         const p=0.5+Math.sin(tick.current+x*0.05)*0.25
-        r(x+4,y+6,TS-8,TS-12,C.mn); r(x+5,y+7,TS-10,TS-14,C.mnS)
+        r(x+4,y+6,TS-8,TS-12,C.mn)
         ctx.globalAlpha=p*0.9
-        r(x+6,y+8,10,2,C.mnG); r(x+6,y+12,TS-14,2,'#70b0d8'); r(x+6,y+16,8,2,C.mnG)
+        r(x+6,y+8,10,2,C.mnG); r(x+6,y+12,TS-14,2,'#70b0d8')
         ctx.globalAlpha=1
-        r(x+TS/2-4,y+TS-8,8,4,C.mn); r(x+TS/2-8,y+TS-4,16,3,'#0e0e1a')
       },
       [TL.CH]: (x,y,tc,tr) => {
         r(x,y,TS,TS,(tc+tr)%2===0?C.fl:C.fl2)
         const cc=C.ch[(tc/5|0+tr)%C.ch.length]
-        r(x+3,y+1,TS-6,5,cc); r(x+3,y+6,TS-6,16,cc); r(x+5,y+8,TS-10,5,cc+'ee')
+        r(x+3,y+1,TS-6,5,cc); r(x+3,y+6,TS-6,16,cc)
         r(x+4,y+22,5,10,'#706060'); r(x+TS-9,y+22,5,10,'#706060')
-        r(x+4,y+30,TS-8,3,'#605050')
       },
       [TL.PL]: (x,y,tc,tr) => {
         r(x,y,TS,TS,(tc+tr)%2===0?C.fl:C.fl2)
-        ctx.fillStyle='rgba(0,0,0,0.15)'; ctx.beginPath(); ctx.ellipse(x+TS/2,y+TS-3,9,3,0,0,Math.PI*2); ctx.fill()
         r(x+8,y+18,16,12,C.pot); r(x+8,y+18,16,3,C.potL)
         r(x+TS/2-1,y+8,3,12,'#286018')
-        r(x+2,y+2,12,10,C.pl2); r(x+2,y+2,10,7,C.pl1)
-        r(x+14,y-1,12,12,C.pl2); r(x+6,y-4,10,14,C.pl1)
+        r(x+2,y+2,12,10,C.pl2); r(x+14,y-1,12,12,C.pl2)
       },
       [TL.DV]: (x,y) => {
         r(x,y,TS,TS,C.wlD); r(x+TS/2-3,y,6,TS,C.sf_wood)
@@ -283,177 +252,271 @@ export default function PixelOffice({ activeAgentId }: Props) {
         const bars=[9,15,7,12,18,6]; bars.forEach((bh,i)=>{ r(x+3+i*4,y+4+TS-12-bh,3,bh,C.bk[(x/TS|0+i)%C.bk.length]) })
       },
       [TL.MT]: (x,y) => {
-        r(x,y,TS,TS,C.mt); r(x,y,TS,2,C.mtL); r(x,y,2,TS,C.mtL)
-        r(x+TS-2,y,2,TS,C.mtD); r(x,y+TS-2,TS,2,C.mtD)
+        r(x,y,TS,TS,C.mt); r(x,y,TS,2,C.mtL)
       },
       [TL.ME]: (x,y,tc,tr) => {
         r(x,y,TS,TS,C.mtL); r(x+4,y+4,TS-8,TS-8,C.ch[(tc+tr)%C.ch.length])
       },
       [TL.SF]: (x,y) => {
         r(x,y,TS,TS,C.so); r(x+2,y+2,TS-4,TS/2-2,C.soL)
-        r(x+1,y+1,4,TS-2,'rgba(255,255,255,0.07)')
       },
       [TL.SA]: (x,y) => {
         r(x,y,TS,TS,C.soA); r(x+2,y+2,TS-4,TS-4,C.soD)
       },
       [TL.FR]: (x,y,tc) => {
         r(x,y,TS,TS,(tc%2===0?C.fl:C.fl2))
-        r(x+4,y+4,TS-8,TS-8,C.fr[tc%3]); r(x+6,y+6,TS-12,TS-12,'rgba(255,255,255,0.12)')
+        r(x+4,y+4,TS-8,TS-8,C.fr[tc%3])
         ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=1.5; ctx.strokeRect(x+4,y+4,TS-8,TS-8)
       },
     }
 
-    // ── sprite renderers ──────────────────
-    const drawHair = (px:number,py:number,hair:string,style:string,dir:string) => {
-      if(dir==='u'){
-        r(px+1,py-2,SPW-2,6,hair); r(px,py+2,3,8,hair); r(px+SPW-3,py+2,3,8,hair)
-        if(style==='long') r(px+1,py+8,SPW-2,10,hair)
-      } else if(dir==='d'){
-        if(style==='long'){ r(px+1,py-2,SPW-2,8,hair); r(px,py+6,3,20,hair); r(px+SPW-3,py+6,3,20,hair) }
-        else { r(px+1,py-2,SPW-2,6,hair); r(px+1,py+4,4,5,hair); r(px+SPW-5,py+4,4,5,hair) }
+    // ── 🎮 로블록스 스타일 캐릭터 그리기 ────
+    const drawRobloxChar = (
+      px: number, py: number,
+      bodyColor: string, headColor: string, hatColor: string,
+      accessory: string, accent: string,
+      dir: 'u'|'d'|'l'|'r', frame: number, sitting: boolean,
+      isPlayer: boolean, isActive: boolean
+    ) => {
+      const t = tick.current
+
+      // 걷기 애니메이션 - 다리/팔 흔들기
+      const legSwing = sitting ? 0 : Math.sin(frame * 1.2) * 4
+      const armSwing = sitting ? 0 : Math.sin(frame * 1.2 + Math.PI) * 3
+
+      // ── 그림자 ──
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'
+      ctx.beginPath()
+      ctx.ellipse(px + RW/2, py + RH + 2, sitting ? 9 : 8, 3, 0, 0, Math.PI*2)
+      ctx.fill()
+
+      // ── 다리 (앞/뒤/옆 방향별) ──
+      const legColor = isPlayer ? '#303060' : bodyColor
+      const darkLeg = isPlayer ? '#1a1a40' : darken(bodyColor, 40)
+
+      if (dir === 'd' || dir === 'u') {
+        if (sitting) {
+          // 앉은 자세
+          r(px+2, py+RH-8, 6, 8, legColor)
+          r(px+RW-8, py+RH-8, 6, 8, legColor)
+        } else {
+          r(px+2, py+RH-10+legSwing, 6, 10, legColor)
+          r(px+RW-8, py+RH-10-legSwing, 6, 10, darkLeg)
+        }
       } else {
-        r(px+1,py-2,SPW-2,6,hair)
-        r(dir==='l'?px+SPW-4:px, py+2, 4, 10, hair)
+        // 옆에서 볼 때 다리 2개 겹쳐서
+        r(px+4, py+RH-10+legSwing, 6, 10, legColor)
+        r(px+8, py+RH-10-legSwing, 6, 10, darkLeg)
+      }
+
+      // ── 신발 ──
+      const shoeColor = isPlayer ? '#181818' : '#1a1a1a'
+      if (sitting) {
+        r(px+1, py+RH-1, 8, 4, shoeColor)
+        r(px+RW-9, py+RH-1, 8, 4, shoeColor)
+      } else {
+        r(px+1, py+RH-1+legSwing, 8, 4, shoeColor)
+        r(px+RW-9, py+RH-1-legSwing, 8, 4, shoeColor)
+      }
+
+      // ── 몸통 (박스 형태) ──
+      const bodyMain = isPlayer ? '#c03030' : bodyColor
+      const bodySide = darken(bodyMain, 30)
+      const bodyTop  = lighten(bodyMain, 20)
+
+      r(px+1, py+RH-20, RW-2, 12, bodyMain)
+      // 3D 효과 - 오른쪽 면
+      r(px+RW-3, py+RH-20, 2, 12, bodySide)
+      // 3D 효과 - 위쪽 면
+      r(px+1, py+RH-20, RW-2, 2, bodyTop)
+
+      // ── 팔 ──
+      if (dir === 'd' || dir === 'u') {
+        r(px-3, py+RH-19+armSwing, 4, 8, bodyMain)
+        r(px+RW-1, py+RH-19-armSwing, 4, 8, bodySide)
+        // 손
+        r(px-3, py+RH-11+armSwing, 4, 4, headColor)
+        r(px+RW-1, py+RH-11-armSwing, 4, 4, headColor)
+      } else {
+        r(px-2, py+RH-19+armSwing, 4, 8, bodyMain)
+        r(px-2, py+RH-11+armSwing, 4, 4, headColor)
+      }
+
+      // ── 넥타이/악세서리 (몸통 위) ──
+      if (accessory === 'tie') {
+        r(px+RW/2-1, py+RH-18, 3, 8, accent)
+        r(px+RW/2-2, py+RH-10, 4, 4, accent)
+      }
+
+      // ── 머리 (큰 네모 = 로블록스 특징!) ──
+      const headW = RW + 4
+      const headH = 14
+      const hx = px - 2
+      const hy = py + RH - 32
+
+      // 머리 본체
+      r(hx, hy, headW, headH, headColor)
+      // 3D 효과
+      r(hx+headW-3, hy, 3, headH, darken(headColor, 20))
+      r(hx, hy, headW, 2, lighten(headColor, 15))
+
+      // ── 얼굴 ──
+      if (dir === 'd' || dir === 'l' || dir === 'r') {
+        // 눈 (동그란 큰 눈 = 로블록스!)
+        ctx.fillStyle = '#1a0a2e'
+        ctx.beginPath(); ctx.arc(hx+6, hy+5, 2.5, 0, Math.PI*2); ctx.fill()
+        ctx.beginPath(); ctx.arc(hx+headW-6, hy+5, 2.5, 0, Math.PI*2); ctx.fill()
+        // 눈 하이라이트
+        ctx.fillStyle = '#ffffff'
+        ctx.beginPath(); ctx.arc(hx+7, hy+4, 1, 0, Math.PI*2); ctx.fill()
+        ctx.beginPath(); ctx.arc(hx+headW-5, hy+4, 1, 0, Math.PI*2); ctx.fill()
+
+        // 입 (활짝 웃는 미소)
+        if (isActive) {
+          // 업무중 = 입 크게 벌림
+          ctx.fillStyle = '#c0304a'
+          ctx.beginPath(); ctx.arc(hx+headW/2, hy+9, 3, 0, Math.PI); ctx.fill()
+        } else {
+          ctx.strokeStyle = '#9b4a5a'
+          ctx.lineWidth = 1.5; ctx.lineCap = 'round'
+          ctx.beginPath()
+          ctx.arc(hx+headW/2, hy+7, 3, 0.2, Math.PI-0.2)
+          ctx.stroke()
+        }
+
+        // 볼 홍조
+        ctx.fillStyle = 'rgba(255,120,120,0.35)'
+        ctx.beginPath(); ctx.ellipse(hx+4, hy+7, 2.5, 1.5, 0, 0, Math.PI*2); ctx.fill()
+        ctx.beginPath(); ctx.ellipse(hx+headW-4, hy+7, 2.5, 1.5, 0, 0, Math.PI*2); ctx.fill()
+      } else {
+        // 뒤에서 볼 때 = 뒷머리만
+        ctx.fillStyle = darken(headColor, 10)
+        r(hx, hy, headW, headH, darken(headColor, 10))
+      }
+
+      // ── 모자/악세서리 ──
+      if (accessory === 'crown') {
+        // 왕관
+        r(hx+2, hy-5, headW-4, 5, hatColor)
+        r(hx+2, hy-8, 3, 3, hatColor); r(hx+headW/2-1, hy-9, 4, 4, hatColor); r(hx+headW-7, hy-8, 3, 3, hatColor)
+        ctx.fillStyle = '#ffe030'
+        ctx.beginPath(); ctx.arc(hx+headW/2+1, hy-8, 2, 0, Math.PI*2); ctx.fill()
+      } else if (accessory === 'cap') {
+        // 야구 모자
+        r(hx, hy-5, headW, 6, hatColor)
+        r(hx-4, hy-2, headW+8, 3, darken(hatColor, 20))
+      } else if (accessory === 'bow') {
+        // 리본
+        ctx.fillStyle = accent
+        ctx.beginPath(); ctx.moveTo(hx+headW/2, hy-2)
+        ctx.lineTo(hx+headW/2-8, hy-8); ctx.lineTo(hx+headW/2, hy-5)
+        ctx.lineTo(hx+headW/2+8, hy-8); ctx.closePath(); ctx.fill()
+        r(hx+headW/2-2, hy-5, 4, 4, lighten(accent, 20))
+      } else if (accessory === 'glass') {
+        // 안경
+        ctx.strokeStyle = '#2c2c4a'; ctx.lineWidth = 1.5
+        ctx.strokeRect(hx+2, hy+2, 7, 7)
+        ctx.strokeRect(hx+headW-9, hy+2, 7, 7)
+        ctx.beginPath(); ctx.moveTo(hx+9, hy+5); ctx.lineTo(hx+headW-9, hy+5); ctx.stroke()
+      } else if (accessory === 'hat') {
+        r(hx+2, hy-8, headW-4, 8, hatColor)
+        r(hx-2, hy-2, headW+4, 3, darken(hatColor, 20))
+      }
+
+      // ── 플레이어 별 마크 ──
+      if (isPlayer) {
+        const bob = Math.sin(t * 3) * 1.5
+        ctx.fillStyle = '#ffe030'
+        ctx.font = 'bold 12px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText('⭐', px + RW/2, hy - 10 + bob)
+        ctx.textAlign = 'left'
+      }
+
+      // ── 활성 에이전트 빛나는 효과 ──
+      if (isActive) {
+        const glow = Math.sin(t * 4) * 0.3 + 0.7
+        ctx.strokeStyle = accent
+        ctx.lineWidth = 2
+        ctx.globalAlpha = glow
+        ctx.strokeRect(hx-1, hy-1, headW+2, headH+2)
+        ctx.globalAlpha = 1
       }
     }
 
-    const drawSprite = (px:number,py:number,def:AgDef|null,dir:'u'|'d'|'l'|'r',frame:number,sitting:boolean,isPlayer=false) => {
-      const hair  = isPlayer ? C.pl_hair  : def!.hair
-      const skin  = isPlayer ? C.pl_skin  : def!.skin
-      const top   = isPlayer ? C.pl_top   : def!.top
-      const bot   = isPlayer ? C.pl_bot   : def!.bot
-      const shoe  = isPlayer ? C.pl_shoe  : def!.shoe
-      const acc   = isPlayer ? 'none'     : def!.acc
-      const accent= isPlayer ? C.pl_top   : def!.accent
-
-      const lOff = sitting?0:[0,3,0,-3][frame%4]
-      const rOff = sitting?0:[0,-3,0,3][frame%4]
-
-      ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(px+SPW/2,py+SPH-1,8,3,0,0,Math.PI*2); ctx.fill()
-
-      // Shoes & legs
-      r(px+2,py+SPH-4+lOff,5,4,shoe); r(px+9,py+SPH-4+rOff,5,4,shoe)
-      r(px+3,py+14+lOff,4,8,bot); r(px+9,py+14+rOff,4,8,bot)
-
-      // Body
-      r(px+1,py+7,SPW-2,8,top)
-
-      if(dir==='d'){
-        // Front arms
-        r(px-1,py+8,3,8,top); r(px+SPW-2,py+8,3,8,top)
-        r(px-1,py+14,4,4,skin); r(px+SPW-3,py+14,4,4,skin)
-        // Head
-        r(px+2,py,SPW-4,9,skin)
-        // Face
-        r(px+4,py+3,3,3,'#18102a'); r(px+9,py+3,3,3,'#18102a')
-        r(px+5,py+4,1,1,'#fff'); r(px+10,py+4,1,1,'#fff')
-        r(px+5,py+7,6,2,'#c05870')
-        drawHair(px,py,hair,acc,dir)
-        if(acc==='glass'){
-          ctx.strokeStyle='#282848'; ctx.lineWidth=1.2
-          ctx.strokeRect(px+3,py+2,5,5); ctx.strokeRect(px+8,py+2,5,5)
-        }
-        if(acc==='tie') r(px+6,py+8,4,8,accent)
-        if(acc==='ear'){ r(px,py+3,2,4,'#f8d020'); r(px+SPW-2,py+3,2,4,'#f8d020') }
-        // Player star
-        if(isPlayer){
-          ctx.fillStyle='#ffe030'; ctx.font='bold 10px sans-serif'; ctx.textAlign='center'
-          ctx.fillText('★',px+SPW/2,py-2); ctx.textAlign='left'
-        }
-      } else if(dir==='u'){
-        r(px-1,py+8,3,8,top); r(px+SPW-2,py+8,3,8,top)
-        r(px-1,py+14,4,4,skin); r(px+SPW-3,py+14,4,4,skin)
-        r(px+2,py,SPW-4,8,skin)
-        drawHair(px,py,hair,acc,dir)
-        if(acc==='tie') r(px+6,py+8,4,6,accent)
-        if(isPlayer){
-          ctx.fillStyle='#ffe030'; ctx.font='bold 10px sans-serif'; ctx.textAlign='center'
-          ctx.fillText('★',px+SPW/2,py-2); ctx.textAlign='left'
-        }
-      } else {
-        r(dir==='l'?px-1:px+SPW-2,py+8,3,10,top)
-        r(dir==='l'?px-1:px+SPW-2,py+16,4,4,skin)
-        r(px+2,py,SPW-4,9,skin)
-        const ex = dir==='l'?px+3:px+8
-        r(ex,py+3,3,3,'#18102a'); r(ex+1,py+4,1,1,'#fff')
-        drawHair(px,py,hair,acc,dir)
-        if(isPlayer){
-          ctx.fillStyle='#ffe030'; ctx.font='bold 10px sans-serif'; ctx.textAlign='center'
-          ctx.fillText('★',px+SPW/2,py-2); ctx.textAlign='left'
-        }
-      }
+    // 색상 유틸리티
+    function darken(hex: string, amount: number): string {
+      const num = parseInt(hex.slice(1), 16)
+      const r = Math.max(0, (num >> 16) - amount)
+      const g = Math.max(0, ((num >> 8) & 0xff) - amount)
+      const b = Math.max(0, (num & 0xff) - amount)
+      return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
+    }
+    function lighten(hex: string, amount: number): string {
+      const num = parseInt(hex.slice(1), 16)
+      const r = Math.min(255, (num >> 16) + amount)
+      const g = Math.min(255, ((num >> 8) & 0xff) + amount)
+      const b = Math.min(255, (num & 0xff) + amount)
+      return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
     }
 
+    // ── 이름표 ──
     const drawLabel = (px:number,py:number,name:string,active:boolean,accent:string) => {
-      ctx.font='bold 11px "Jua",monospace'
-      const tw=ctx.measureText(name).width+14
-      const lx=px+SPW/2-tw/2, ly=py-22
-      ctx.fillStyle='#000'; ctx.strokeStyle='#000'; ctx.lineWidth=4
-      ctx.beginPath(); ctx.roundRect(lx,ly,tw,15,3); ctx.fill(); ctx.stroke()
-      ctx.fillStyle=active?accent:'rgba(12,8,30,0.96)'
-      ctx.strokeStyle=active?'rgba(255,255,255,0.9)':'rgba(160,140,220,0.6)'
-      ctx.lineWidth=1.5
-      ctx.beginPath(); ctx.roundRect(lx,ly,tw,15,3); ctx.fill(); ctx.stroke()
-      ctx.fillStyle='#fff'; ctx.textAlign='center'
-      ctx.fillText(name,px+SPW/2,ly+11); ctx.textAlign='left'
+      const hy = py + RH - 32
+      ctx.font = 'bold 10px "Jua",monospace'
+      const tw = ctx.measureText(name).width + 12
+      const lx = px + RW/2 - tw/2, ly = hy - 18
+      ctx.fillStyle = active ? accent : 'rgba(20,10,50,0.9)'
+      ctx.strokeStyle = active ? '#fff' : 'rgba(160,140,220,0.5)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.roundRect(lx, ly, tw, 14, 3); ctx.fill(); ctx.stroke()
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'
+      ctx.fillText(name, px + RW/2, ly + 10); ctx.textAlign = 'left'
     }
 
+    // ── 말풍선 ──
+    const BUBBLES: Record<string,string> = {
+      router:'업무 배분!', web:'코딩 중!', content:'작성 중!', research:'분석 중!', edu:'강의 중!', ops:'배포 중!'
+    }
     const drawBubble = (px:number,py:number,text:string,accent:string) => {
-      const bob=Math.sin(tick.current*3)*1.5
-      ctx.font='9px "Jua",monospace'
-      const tw=ctx.measureText(text).width+12
-      const bx=px+SPW/2-tw/2, by=py+bob-42
-      ctx.fillStyle='rgba(255,255,255,0.97)'; ctx.strokeStyle=accent; ctx.lineWidth=1.5
-      ctx.beginPath(); ctx.roundRect(bx,by,tw,16,4); ctx.fill(); ctx.stroke()
-      ctx.fillStyle='rgba(255,255,255,0.97)'; ctx.beginPath()
-      ctx.moveTo(px+SPW/2-4,by+16); ctx.lineTo(px+SPW/2+4,by+16); ctx.lineTo(px+SPW/2,by+23); ctx.fill()
-      ctx.fillStyle='#100828'; ctx.font='bold 9px "Jua",monospace'
-      ctx.textAlign='center'; ctx.fillText(text,px+SPW/2,by+12); ctx.textAlign='left'
+      const bob = Math.sin(tick.current * 3) * 1.5
+      const hy = py + RH - 32
+      ctx.font = '9px "Jua",monospace'
+      const tw = ctx.measureText(text).width + 12
+      const bx = px + RW/2 - tw/2, by = hy - 36 + bob
+      ctx.fillStyle = 'rgba(255,255,255,0.97)'; ctx.strokeStyle = accent; ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.roundRect(bx, by, tw, 16, 4); ctx.fill(); ctx.stroke()
+      // 꼬리
+      ctx.fillStyle = 'rgba(255,255,255,0.97)'; ctx.beginPath()
+      ctx.moveTo(px+RW/2-4, by+16); ctx.lineTo(px+RW/2+4, by+16); ctx.lineTo(px+RW/2, by+22); ctx.fill()
+      ctx.fillStyle = '#100828'; ctx.font = 'bold 9px "Jua",monospace'
+      ctx.textAlign = 'center'; ctx.fillText(text, px+RW/2, by+11); ctx.textAlign = 'left'
     }
 
-    // ── Highlight tile (decorate mode) ────
-    const drawTileHighlight = (mx:number,my:number) => {
-      const tc=Math.floor((mx-2)/TS), tr=Math.floor((my-2)/TS)
-      if(tc<0||tc>=COLS||tr<0||tr>=ROWS) return
-      const x=tpx(tc), y=tpy(tr)
-      ctx.strokeStyle='#ffe030'; ctx.lineWidth=2
-      ctx.strokeRect(x,y,TS,TS)
-      ctx.fillStyle='rgba(255,224,48,0.15)'
-      ctx.fillRect(x,y,TS,TS)
-    }
-
-    // ── HUD overlay ───────────────────────
+    // ── HUD ──
     const drawHUD = (isDecorate:boolean, nearAgName:string|null) => {
-      // Mode badge
-      const modeText = isDecorate ? '🛠️ 꾸미기 모드 (F로 나가기)' : '🎮 이동 모드 (F로 꾸미기)'
+      const modeText = isDecorate ? '🎨 꾸미기 모드 (F로 전환)' : '🕹️ 이동 모드 (F로 꾸미기)'
       ctx.fillStyle = isDecorate ? 'rgba(255,160,0,0.9)' : 'rgba(20,10,50,0.85)'
       ctx.strokeStyle = isDecorate ? '#ffb020' : 'rgba(160,140,220,0.6)'
-      ctx.lineWidth=1.5
-      ctx.beginPath(); ctx.roundRect(8, CANVAS_H-32, 260, 24, 6); ctx.fill(); ctx.stroke()
-      ctx.fillStyle='#fff'; ctx.font='bold 11px "Jua",monospace'
+      ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.roundRect(8, CANVAS_H-32, 220, 24, 6); ctx.fill(); ctx.stroke()
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Jua",monospace'
       ctx.fillText(modeText, 16, CANVAS_H-15)
 
-      // WASD hint
-      if(!isDecorate){
-        ctx.fillStyle='rgba(20,10,50,0.7)'
-        ctx.beginPath(); ctx.roundRect(CANVAS_W-120, CANVAS_H-32, 112, 24, 6); ctx.fill()
-        ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='10px monospace'
-        ctx.fillText('WASD / ↑↓←→ 이동', CANVAS_W-114, CANVAS_H-15)
+      if (!isDecorate) {
+        ctx.fillStyle = 'rgba(20,10,50,0.7)'
+        ctx.beginPath(); ctx.roundRect(CANVAS_W-130, CANVAS_H-32, 122, 24, 6); ctx.fill()
+        ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '10px monospace'
+        ctx.fillText('WASD / 방향키 이동', CANVAS_W-122, CANVAS_H-15)
       }
 
-      // Near agent popup
-      if(nearAgName && !isDecorate){
-        ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.strokeStyle='#8860f0'; ctx.lineWidth=2
-        ctx.beginPath(); ctx.roundRect(CANVAS_W/2-80, CANVAS_H-60, 160, 28, 8); ctx.fill(); ctx.stroke()
-        ctx.fillStyle='#300850'; ctx.font='bold 11px "Jua",monospace'; ctx.textAlign='center'
-        ctx.fillText(`💬 ${nearAgName}에게 말 걸기`, CANVAS_W/2, CANVAS_H-41)
-        ctx.textAlign='left'
+      if (nearAgName && !isDecorate) {
+        ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.strokeStyle = '#8860f0'; ctx.lineWidth = 2
+        ctx.beginPath(); ctx.roundRect(CANVAS_W/2-90, CANVAS_H-60, 180, 28, 8); ctx.fill(); ctx.stroke()
+        ctx.fillStyle = '#300850'; ctx.font = 'bold 11px "Jua",monospace'; ctx.textAlign = 'center'
+        ctx.fillText(`👋 ${nearAgName}에게 인사!`, CANVAS_W/2, CANVAS_H-41)
+        ctx.textAlign = 'left'
       }
-    }
-
-    // ── main loop ────────────────────────────
-    const BUBBLES: Record<string,string> = {
-      router:'업무 배분!',web:'코딩 중!',content:'작성 중!',research:'분석 중!',edu:'교육 자료!',ops:'서버 점검!'
     }
 
     let mouseX=0, mouseY=0
@@ -472,8 +535,8 @@ export default function PixelOffice({ activeAgentId }: Props) {
       const cts = loadData<CT[]>('nk_custom_teams', [])
       const isDecorate = modeRef.current === 'decorate'
 
-      // ── Player movement ────────────────
-      if(!isDecorate){
+      // ── 플레이어 이동 ──
+      if (!isDecorate) {
         const pl = playerRef.current
         const spd = 2
         let dx=0, dy=0
@@ -483,18 +546,17 @@ export default function PixelOffice({ activeAgentId }: Props) {
         if(k.has('arrowleft') ||k.has('a')) dx=-spd
         if(k.has('arrowright')||k.has('d')) dx= spd
         pl.moving = dx!==0||dy!==0
-        if(pl.moving){
+        if (pl.moving) {
           const nx=pl.x+dx, ny=pl.y+dy
           if(canWalk(nx,ny)){ pl.x=nx; pl.y=ny }
           else if(canWalk(pl.x+dx, pl.y)){ pl.x+=dx }
           else if(canWalk(pl.x, pl.y+dy)){ pl.y+=dy }
-          pl.frame=Math.floor(t*5)%4
+          pl.frame = (pl.frame + 0.3) % (Math.PI * 2)
           if(Math.abs(dx)>Math.abs(dy)) pl.dir=dx>0?'r':'l'
           else pl.dir=dy>0?'d':'u'
         }
 
-        // Check near agent
-        let nearest:string|null=null, nearDist=48
+        let nearest:string|null=null, nearDist=50
         agRef.current.forEach(ag=>{
           const d=Math.hypot(ag.x-pl.x, ag.y-pl.y)
           if(d<nearDist){ nearDist=d; nearest=ag.def.name }
@@ -502,10 +564,10 @@ export default function PixelOffice({ activeAgentId }: Props) {
         setNearAgent(nearest)
       }
 
-      // ── Clear ──────────────────────────
-      ctx.fillStyle='#0a0a16'; ctx.fillRect(0,0,cv.width,cv.height)
+      // ── 배경 ──
+      ctx.fillStyle = '#0a0a16'; ctx.fillRect(0, 0, cv.width, cv.height)
 
-      // ── Tiles ──────────────────────────
+      // ── 타일 렌더 ──
       for(let tr=0;tr<ROWS;tr++){
         for(let tc=0;tc<COLS;tc++){
           const tile=mapRef.current[tr]?.[tc]; if(!tile) continue
@@ -516,10 +578,18 @@ export default function PixelOffice({ activeAgentId }: Props) {
         }
       }
 
-      // Decorate mode: tile hover highlight
-      if(isDecorate) drawTileHighlight(mouseX, mouseY)
+      // 꾸미기 모드 하이라이트
+      if (isDecorate) {
+        const tc=Math.floor((mouseX-2)/TS), tr=Math.floor((mouseY-2)/TS)
+        if(tc>=0&&tc<COLS&&tr>=0&&tr<ROWS){
+          ctx.strokeStyle='#ffe030'; ctx.lineWidth=2
+          ctx.strokeRect(tpx(tc), tpy(tr), TS, TS)
+          ctx.fillStyle='rgba(255,224,48,0.15)'
+          ctx.fillRect(tpx(tc), tpy(tr), TS, TS)
+        }
+      }
 
-      // ── Agents ─────────────────────────
+      // ── 에이전트 AI 이동 ──
       agRef.current.forEach(ag=>{
         ag.timer-=0.04
         if(ag.state==='sit'){
@@ -528,7 +598,7 @@ export default function PixelOffice({ activeAgentId }: Props) {
               const tgt=walkTarget()
               ag.state='walk'; ag.tx=tgt.tx; ag.ty=tgt.ty
               ag.walksLeft=1+Math.floor(Math.random()*2)
-              ag.timer=8+Math.random()*8; ag.dir='d'
+              ag.timer=8+Math.random()*8
             } else { ag.timer=15+Math.random()*25 }
           }
         } else if(ag.state==='walk'){
@@ -536,7 +606,7 @@ export default function PixelOffice({ activeAgentId }: Props) {
           if(dist>2){
             const nx=ag.x+dx/dist*1.2, ny=ag.y+dy/dist*1.2
             if(canWalk(nx,ny)){ag.x=nx;ag.y=ny} else {ag.state='return';ag.tx=ag.sx;ag.ty=ag.sy}
-            ag.frame=Math.floor(t*5)%4
+            ag.frame=(ag.frame+0.25)%(Math.PI*2)
             if(Math.abs(dx)>Math.abs(dy)) ag.dir=dx>0?'r':'l'
             else ag.dir=dy>0?'d':'u'
           } else {
@@ -544,13 +614,12 @@ export default function PixelOffice({ activeAgentId }: Props) {
             if(ag.walksLeft<=0||ag.timer<=0){ ag.state='return'; ag.tx=ag.sx; ag.ty=ag.sy }
             else { const tgt=walkTarget(); ag.tx=tgt.tx; ag.ty=tgt.ty }
           }
-          ag.timer-=0.04
         } else {
           const dx=ag.tx-ag.x, dy=ag.ty-ag.y, dist=Math.hypot(dx,dy)
           if(dist>3){
             const nx=ag.x+dx/dist*1.3, ny=ag.y+dy/dist*1.3
             if(canWalk(nx,ny)){ag.x=nx;ag.y=ny}
-            ag.frame=Math.floor(t*5)%4
+            ag.frame=(ag.frame+0.25)%(Math.PI*2)
             if(Math.abs(dx)>Math.abs(dy)) ag.dir=dx>0?'r':'l'
             else ag.dir=dy>0?'d':'u'
           } else {
@@ -560,68 +629,64 @@ export default function PixelOffice({ activeAgentId }: Props) {
         }
       })
 
-      // Sort by Y
+      // ── Y정렬 후 스프라이트 렌더 ──
       const pl = playerRef.current
       type Sprite = { y:number; draw:()=>void }
       const sprites: Sprite[] = []
 
       agRef.current.forEach(ag=>{
-        sprites.push({ y: ag.y, draw:()=>{
-          const isAct=actRef.current===ag.def.id
-          const nm=s.agentNames?.[ag.def.id]||ag.def.name
-          const def={...ag.def,name:nm}
-          const sitting=ag.state==='sit'
-          const px=Math.round(ag.x-SPW/2), py=Math.round(ag.y-SPH)
-          drawSprite(px,py,def,ag.dir,ag.frame,sitting,false)
-          drawLabel(px,py,nm,isAct,def.accent)
-          if(isAct) drawBubble(px,py,BUBBLES[def.id]||'작업 중!',def.accent)
+        sprites.push({ y:ag.y, draw:()=>{
+          const isAct = actRef.current === ag.def.id
+          const nm = s.agentNames?.[ag.def.id] || ag.def.name
+          const sitting = ag.state === 'sit'
+          const px = Math.round(ag.x-RW/2), py = Math.round(ag.y-RH)
+          drawRobloxChar(px, py, ag.def.bodyColor, ag.def.headColor, ag.def.hatColor,
+            ag.def.accessory, ag.def.accent, ag.dir, ag.frame, sitting, false, isAct)
+          drawLabel(px, py, nm, isAct, ag.def.accent)
+          if (isAct) drawBubble(px, py, BUBBLES[ag.def.id]||'업무 중!', ag.def.accent)
         }})
       })
 
-      // Custom teams
+      // 커스텀 팀 스프라이트
       cts.slice(0,6).forEach((ct,i)=>{
         const col=i%3, row=Math.floor(i/3)
-        const tc=2+col*4, tr=13+row*2
-        const ax=tpx(tc)+TS/2, ay=tpy(tr)+TS
-        const customDef: AgDef = {
-          id:ct.id, name:ct.name,
-          hair:'#c0c0c8', skin:'#f4c080',
-          top:['#4040a0','#902018','#208848'][i%3],
-          bot:'#202028', shoe:'#100808',
-          acc:'none', accent:['#6060e8','#d03020','#30b860'][i%3],
-          seat:{tc,tr}
-        }
-        const nm=s.agentNames?.[ct.id]||ct.name
-        const px=Math.round(ax-SPW/2), py=Math.round(ay-SPH)
+        const tc=2+col*4, tr2=13+row*2
+        const ax=tpx(tc)+TS/2, ay=tpy(tr2)+TS
+        const colors = [
+          {body:'#4040a0',head:'#f4c080',hat:'#6060e8',acc:'none',accent:'#8080ff'},
+          {body:'#902018',head:'#fde3a7',hat:'#e74c3c',acc:'bow',accent:'#ff6060'},
+          {body:'#208848',head:'#f0c896',hat:'#27ae60',acc:'none',accent:'#50e870'},
+        ]
+        const col3 = colors[i%3]
+        const nm = s.agentNames?.[ct.id] || ct.name
+        const px = Math.round(ax-RW/2), py = Math.round(ay-RH)
         sprites.push({ y:ay, draw:()=>{
-          drawSprite(px,py,customDef,'u',0,true,false)
-          drawLabel(px,py,nm,actRef.current===ct.id,customDef.accent)
+          drawRobloxChar(px, py, col3.body, col3.head, col3.hat, col3.acc, col3.accent, 'u', 0, true, false, actRef.current===ct.id)
+          drawLabel(px, py, nm, actRef.current===ct.id, col3.accent)
         }})
       })
 
-      // Player sprite
-      if(!isDecorate){
-        sprites.push({ y: pl.y, draw:()=>{
-          const px=Math.round(pl.x-SPW/2), py=Math.round(pl.y-SPH)
-          drawSprite(px,py,null,pl.dir,pl.frame,false,true)
-          drawLabel(px,py,'나',false,'#ffe030')
+      // 플레이어 스프라이트
+      if (!isDecorate) {
+        sprites.push({ y:pl.y, draw:()=>{
+          const px=Math.round(pl.x-RW/2), py=Math.round(pl.y-RH)
+          drawRobloxChar(px, py, '#c03030', '#f4c890', '#ffe030', 'none', '#ffe030', pl.dir, pl.frame, false, true, false)
+          drawLabel(px, py, '나', false, '#ffe030')
         }})
       }
 
-      sprites.sort((a,b)=>a.y-b.y).forEach(s=>s.draw())
+      sprites.sort((a,b)=>a.y-b.y).forEach(sp=>sp.draw())
 
-      // HUD
       drawHUD(isDecorate, nearAgent)
 
-      animId=requestAnimationFrame(loop)
+      animId = requestAnimationFrame(loop)
     }
-    animId=requestAnimationFrame(loop)
-    return()=>{ cancelAnimationFrame(animId); cv.removeEventListener('mousemove',onMove) }
+    animId = requestAnimationFrame(loop)
+    return () => { cancelAnimationFrame(animId); cv.removeEventListener('mousemove', onMove) }
   }, [nearAgent])
 
   return (
     <div style={{ position:'relative', display:'inline-block' }}>
-      {/* 가구 팔레트 (꾸미기 모드) */}
       {mode==='decorate' && (
         <div style={{
           position:'absolute', top:8, left:'50%', transform:'translateX(-50%)',
@@ -630,29 +695,20 @@ export default function PixelOffice({ activeAgentId }: Props) {
           boxShadow:'0 2px 12px rgba(255,160,0,0.3)'
         }}>
           {FURNITURE_ITEMS.map(item=>(
-            <button
-              key={item.key}
-              onClick={()=>setSelectedTile(item.tile)}
-              title={item.label}
+            <button key={item.key} onClick={()=>setSelectedTile(item.tile)} title={item.label}
               style={{
                 background: selectedTile===item.tile ? '#ffb020' : 'rgba(255,255,255,0.1)',
                 border: selectedTile===item.tile ? '2px solid #fff' : '1.5px solid rgba(255,255,255,0.3)',
                 borderRadius:6, padding:'4px 8px', cursor:'pointer', fontSize:18,
                 color:'#fff', fontWeight:'bold', transition:'all 0.15s'
-              }}
-            >
+              }}>
               {item.icon}
               <div style={{fontSize:9,marginTop:1,opacity:0.8}}>{item.label}</div>
             </button>
           ))}
         </div>
       )}
-
-      <canvas
-        ref={cvRef}
-        width={CANVAS_W}
-        height={CANVAS_H}
-        onClick={handleClick}
+      <canvas ref={cvRef} width={CANVAS_W} height={CANVAS_H} onClick={handleClick}
         style={{
           imageRendering:'pixelated', display:'block', maxWidth:'100%',
           borderRadius:10, border:'1.5px solid #ccc0b0',
