@@ -90,8 +90,9 @@ const SEATS:{tc:number;tr:number}[] = [
 ]
 
 const MEET_SEATS = [
-  {tc:21,tr:3,side:'l'},{tc:21,tr:4,side:'l'},{tc:21,tr:5,side:'l'},
-  {tc:24,tr:3,side:'r'},{tc:24,tr:4,side:'r'},{tc:24,tr:5,side:'r'},
+  {tc:20,tr:3,side:'l'},{tc:25,tr:3,side:'r'},  // 첫 쌍: 좌우
+  {tc:20,tr:4,side:'l'},{tc:25,tr:4,side:'r'},  // 둘째 쌍: 좌우
+  {tc:20,tr:5,side:'l'},{tc:25,tr:5,side:'r'},  // 셋째 쌍: 좌우
 ]
 
 function buildMap(): TileT[][] {
@@ -146,41 +147,34 @@ function buildMap(): TileT[][] {
     if(s.tr+1<ROWS-2) m[s.tr+1][s.tc]=TL.CH
   })
 
-  // 장식 화분 (플랜테리어) ─────────────────────────────────────────
-  // 하단 벽 라인
-  m[ROWS-2][1]=TL.PL; m[ROWS-2][4]=TL.PL; m[ROWS-2][7]=TL.PL
-  m[ROWS-2][10]=TL.PL; m[ROWS-2][13]=TL.PL; m[ROWS-2][17]=TL.PL
-  // 중간 통로 양쪽
-  m[9][3]=TL.PL;  m[9][8]=TL.PL;  m[9][13]=TL.PL; m[9][17]=TL.PL
-  // 콘텐츠존 주변
-  m[3][7]=TL.PL;  m[6][7]=TL.PL
-  // 총괄실장 양옆
-  m[2][8]=TL.PL;  m[2][14]=TL.PL
-  // 코너 포인트
-  m[2][17]=TL.PL; m[5][17]=TL.PL
-  // 하단 팀 주변
-  m[11][2]=TL.PL; m[11][7]=TL.PL; m[11][12]=TL.PL
+  // ── 장식 화분 (적당히) ───────────────────────────────────────
+  m[2][8]=TL.PL;  m[2][14]=TL.PL   // CEO 빅데스크 양쪽
+  m[6][7]=TL.PL                      // 콘텐츠존 오른쪽 끝
+  m[ROWS-2][1]=TL.PL                 // 하단 왼쪽 코너
+  m[ROWS-2][10]=TL.PL                // 하단 중앙
+  m[ROWS-2][17]=TL.PL                // 하단 오른쪽
+  m[5][17]=TL.PL                     // 전략기획실장 옆
   // ─────────────────────────────────────────────────────────────
 
-  // 회의실
-  m[1][20]=TL.TV; m[1][21]=TL.TV
-  for(let r=2;r<=6;r++){m[r][22]=TL.MT;m[r][23]=TL.MT}
-  m[3][21]=TL.CH; m[4][21]=TL.CH; m[5][21]=TL.CH
-  m[3][24]=TL.CH; m[4][24]=TL.CH; m[5][24]=TL.CH
-  m[1][22]=TL.CH; m[1][23]=TL.CH
-  m[7][22]=TL.CH; m[7][23]=TL.CH
-  m[9][20]=TL.SF_A; m[9][21]=TL.SF; m[9][22]=TL.SF; m[9][23]=TL.SF; m[9][24]=TL.SF_A
-  // 소파 옆 화분
-  m[9][COLS-2]=TL.PL; m[ROWS-2][26]=TL.PL
+  // ── 회의실 (테이블 좌우 대칭 정렬) ──────────────────────────
+  m[1][22]=TL.TV; m[1][23]=TL.TV                 // TV 상단 중앙
+  for(let r=2;r<=6;r++){m[r][22]=TL.MT;m[r][23]=TL.MT}  // 테이블 (중앙)
+  // 상단/하단 의자
+  m[1][21]=TL.CH; m[1][24]=TL.CH                // 테이블 윗 의자 2개
+  m[7][21]=TL.CH; m[7][24]=TL.CH                // 테이블 아래 의자 2개
+  // 좌우 대칭: col 20(왼쪽), col 25(오른쪽) → 테이블과 각 1칸 간격
+  m[3][20]=TL.CH; m[4][20]=TL.CH; m[5][20]=TL.CH   // 왼쪽 의자 3개
+  m[3][25]=TL.CH; m[4][25]=TL.CH; m[5][25]=TL.CH   // 오른쪽 의자 3개
 
-  // ── 비서 전용 빅 데스크 (회의실 하단, 총괄실장처럼 크게) ──
+  // ── 비서 전용 빅 데스크 (회의실 하단) ───────────────────────
+  // 소파 없음! (비서 통로 확보 위해 제거)
   m[11][21]=TL.BDK; m[11][22]=TL.BDK; m[11][23]=TL.BDK  // 빅 데스크 3칸
   m[11][24]=TL.MN                                          // 모니터
   m[12][22]=TL.CH; m[12][23]=TL.CH                        // 의자 2개
-  m[11][25]=TL.PL; m[11][20]=TL.PL                        // 양쪽 화분
-  m[ROWS-2][22]=TL.PL; m[ROWS-2][25]=TL.PL
+  // 비서 양쪽은 통로 확보 (PL 없음!)
+  m[ROWS-2][22]=TL.PL; m[ROWS-2][24]=TL.PL               // 아래쪽 화분만
 
-  m[0][3]=TL.FR; m[0][10]=TL.FR; m[0][15]=TL.FR; m[0][21]=TL.FR; m[0][25]=TL.FR
+  m[0][3]=TL.FR; m[0][10]=TL.FR; m[0][15]=TL.FR; m[0][22]=TL.FR; m[0][25]=TL.FR
 
   return m
 }
