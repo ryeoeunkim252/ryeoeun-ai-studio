@@ -50,7 +50,7 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
 
   // ② 3개 서브팀 모두 주황색 스타일 적용, NEW 배지 제거
   const subTeams = [
-    { label: '콘텐츠팀',  desc: '기획·카피·스크립트' },
+    { label: '기획팀',   desc: '기획·카피·스크립트' },
     { label: '디자인팀',  desc: '썸네일·이미지·비주얼' },
     { label: '채널운영팀', desc: '인스타·블로그·자동화' },
   ]
