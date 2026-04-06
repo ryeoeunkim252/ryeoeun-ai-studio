@@ -14,17 +14,19 @@ const CHAR_W = 34, CHAR_H = 60
 const TL = {
   F:1, W:2, SH:3, CLK:4, DK:5, MN:6, CH:7, PL:8, CP:9,
   DIV:10, WB:11, MT:12, SF:13, SF_A:14, FR:15, TV:16, DOOR:17,
-  CF:18, // 콘텐츠존 바닥
-  BDK:19, // 총괄실장 빅 데스크 (특별 렌더)
+  CF:18,  // 콘텐츠존 바닥 (주황)
+  BDK:19, // 총괄실장 빅 데스크
+  YF:20,  // 총괄실장 구역 바닥 (진노랑)
+  MRF:21, // 회의실 구역 바닥 (하늘파랑)
+  SEF:22, // CEO 비서 구역 바닥 (연보라)
 } as const
 type TileT = typeof TL[keyof typeof TL]
-const WALKABLE = new Set<TileT>([TL.F, TL.CP, TL.DOOR, TL.CH, TL.CF])
+const WALKABLE = new Set<TileT>([TL.F, TL.CP, TL.DOOR, TL.CH, TL.CF, TL.YF, TL.MRF, TL.SEF])
 
 const P = {
   fl:'#f0ebe0', flD:'#e4ddd0', flLine:'rgba(170,150,120,0.15)',
   wl:'#eae5f5', wlT:'#dad4ec', wlB:'#c8c0e0',
   dkTop:'#c89858', dkFace:'#9a7030', dkEdge:'#7a5020', dkLeg:'#5a3810',
-  // 빅 데스크 (총괄실장) - 더 어두운 고급 우드
   bdkTop:'#8a5c28', bdkFace:'#5c3810', bdkEdge:'#3c2008', bdkLeg:'#2c1408',
   chBack:'#4a7090', chSeat:'#5a82a8', chFace:'#384f68', chLeg:'#283848',
   mtTop:'#6a3818', mtFace:'#4a2408', mtEdge:'#8a4c20',
@@ -34,6 +36,12 @@ const P = {
   sfGreen:'#3a6848', sfLight:'#4a8058', sfDark:'#284838', sfArm:'#1e3428',
   cpBlue:'#b8c8e0', cpBorder:'#8898b8',
   cfOrange:'#f5ddc8', cfD:'#edd0b8', cfLine:'rgba(210,120,60,0.18)',
+  // 총괄실장 진노랑 존
+  yfL:'#fffae0', yfD:'#fff0b0', yfLine:'rgba(200,150,0,0.18)',
+  // 회의실 하늘파랑 존
+  mrfL:'#e0eeff', mrfD:'#cce0ff', mrfLine:'rgba(50,100,200,0.13)',
+  // CEO 비서 연보라 존
+  sefL:'#f0e8ff', sefD:'#e4d8ff', sefLine:'rgba(120,60,200,0.15)',
   wbBd:'#404858', wbSurf:'#f6f6f2',
   frG:'#c89040', frP:'#7a3898', frB:'#2858a8',
   divBar:'#8890b8', mnBd:'#1a1830', mnScr:'#080818',
@@ -90,9 +98,12 @@ const SEATS:{tc:number;tr:number}[] = [
 ]
 
 const MEET_SEATS = [
-  {tc:22,tr:3,side:'l'},{tc:25,tr:3,side:'r'},  // 좌우 교차
-  {tc:22,tr:4,side:'l'},{tc:25,tr:4,side:'r'},
-  {tc:22,tr:5,side:'l'},{tc:25,tr:5,side:'r'},
+  // 위아래 교차 배치 (5쌍 × 2 = 10석)
+  {tc:21,tr:3,side:'t'},{tc:21,tr:6,side:'b'},
+  {tc:23,tr:3,side:'t'},{tc:23,tr:6,side:'b'},
+  {tc:25,tr:3,side:'t'},{tc:25,tr:6,side:'b'},
+  {tc:22,tr:3,side:'t'},{tc:22,tr:6,side:'b'},
+  {tc:24,tr:3,side:'t'},{tc:24,tr:6,side:'b'},
 ]
 
 function buildMap(): TileT[][] {
@@ -143,36 +154,44 @@ function buildMap(): TileT[][] {
 
   // ── 장식 화분 ──────────────────────────────────────────────────
   m[2][8]=TL.PL;  m[2][14]=TL.PL   // CEO 빅데스크 양쪽
-  m[7][2]=TL.PL                      // ① 콘텐츠존 왼쪽 모서리 안쪽!
+  m[8][1]=TL.PL                      // ③ 콘텐츠존 왼쪽 모서리 (아래1+왼1 이동)
   m[ROWS-2][1]=TL.PL                 // 하단 왼쪽
   m[ROWS-2][10]=TL.PL                // 하단 중앙
   m[ROWS-2][17]=TL.PL                // 하단 오른쪽
   // ─────────────────────────────────────────────────────────────────
 
-  // ── ② 회의실 (테이블 오른쪽 1칸, 의자 붙이기, TV 코너) ──────────
-  // TV(캐비닛) → 최상단 좌(col 20)·우(col 26) 코너에 1개씩
-  m[1][20]=TL.TV
-  m[1][26]=TL.TV
-  // 테이블: 오른쪽 1칸 이동 → cols 23-24, rows 2-6
-  for(let r=2;r<=6;r++){m[r][23]=TL.MT; m[r][24]=TL.MT}
-  // 의자: 테이블 바로 위(붙임)
-  m[1][23]=TL.CH; m[1][24]=TL.CH
-  // 의자: 테이블 바로 아래(붙임)
-  m[7][23]=TL.CH; m[7][24]=TL.CH
-  // 의자: 테이블 바로 왼쪽(붙임)
-  m[3][22]=TL.CH; m[4][22]=TL.CH; m[5][22]=TL.CH
-  // 의자: 테이블 바로 오른쪽(붙임)
-  m[3][25]=TL.CH; m[4][25]=TL.CH; m[5][25]=TL.CH
+  // ── ② 회의실 (가로 배열 테이블, 상하 의자 1명씩, TV 코너) ──────────
+  // TV(캐비닛) → 좌(col 20)·우(col 26) 상단 코너
+  m[1][20]=TL.TV; m[1][26]=TL.TV
+  // 테이블: 가로 배열 → rows 4-5, cols 21-25 (2행 × 5열)
+  for(let c=21;c<=25;c++){m[4][c]=TL.MT; m[5][c]=TL.MT}
+  // 의자: 테이블 바로 위 (row 3), 1명씩 5개
+  for(let c=21;c<=25;c++) m[3][c]=TL.CH
+  // 의자: 테이블 바로 아래 (row 6), 1명씩 5개
+  for(let c=21;c<=25;c++) m[6][c]=TL.CH
   // 회의실 화분
   m[ROWS-2][20]=TL.PL; m[ROWS-2][26]=TL.PL
 
-  // ── 비서 전용 빅 데스크 (cols 22-24, row 11) ──────────────────
+  // ── 비서 빅 데스크 ───────────────────────────────────────────────
   m[11][22]=TL.BDK; m[11][23]=TL.BDK; m[11][24]=TL.BDK
   m[11][25]=TL.MN
   m[12][23]=TL.CH; m[12][24]=TL.CH
   m[ROWS-2][23]=TL.PL
 
   m[0][3]=TL.FR; m[0][10]=TL.FR; m[0][15]=TL.FR; m[0][22]=TL.FR; m[0][25]=TL.FR
+
+  // ── ① 컬러 존 바닥 채우기 (기존 F 타일만 교체) ─────────────────
+  // 총괄실장 진노랑 존 (rows 2-4, cols 8-15)
+  for(let r=2;r<=4;r++) for(let c=8;c<=15;c++)
+    if(m[r][c]===TL.F) m[r][c]=TL.YF
+
+  // 회의실 하늘파랑 존 (rows 1-7, cols 20-26)
+  for(let r=1;r<=7;r++) for(let c=20;c<=26;c++)
+    if(m[r][c]===TL.F) m[r][c]=TL.MRF
+
+  // CEO 비서 연보라 존 (rows 10-13, cols 20-26)
+  for(let r=10;r<=13;r++) for(let c=20;c<=26;c++)
+    if(m[r][c]===TL.F) m[r][c]=TL.SEF
 
   return m
 }
@@ -384,6 +403,29 @@ export default function PixelOffice({activeAgentId}:Props){
           ctx.beginPath();ctx.moveTo(x+TS/2,y+2);ctx.lineTo(x+TS-2,y+TS/2)
           ctx.lineTo(x+TS/2,y+TS-2);ctx.lineTo(x+2,y+TS/2);ctx.closePath();ctx.stroke()
           break}
+        // ── 총괄실장 진노랑 존 ──
+        case TL.YF:{
+          fr(x,y,TS,TS,(tc+tr)%2===0?P.yfL:P.yfD)
+          ctx.strokeStyle=P.yfLine;ctx.lineWidth=0.5;ctx.strokeRect(x,y,TS,TS)
+          // 육각형 패턴 (프리미엄 느낌)
+          ctx.strokeStyle='rgba(200,160,0,0.15)';ctx.lineWidth=0.7
+          ctx.beginPath();ctx.arc(x+TS/2,y+TS/2,TS/3,0,Math.PI*2);ctx.stroke()
+          break}
+        // ── 회의실 하늘파랑 존 ──
+        case TL.MRF:{
+          fr(x,y,TS,TS,(tc+tr)%2===0?P.mrfL:P.mrfD)
+          ctx.strokeStyle=P.mrfLine;ctx.lineWidth=0.5;ctx.strokeRect(x,y,TS,TS)
+          ctx.strokeStyle='rgba(50,100,200,0.1)';ctx.lineWidth=0.6
+          for(let i=4;i<TS;i+=10){ctx.beginPath();ctx.moveTo(x+i,y+2);ctx.lineTo(x+i,y+TS-2);ctx.stroke()}
+          break}
+        // ── CEO 비서 연보라 존 ──
+        case TL.SEF:{
+          fr(x,y,TS,TS,(tc+tr)%2===0?P.sefL:P.sefD)
+          ctx.strokeStyle=P.sefLine;ctx.lineWidth=0.5;ctx.strokeRect(x,y,TS,TS)
+          ctx.strokeStyle='rgba(120,60,200,0.12)';ctx.lineWidth=0.6
+          ctx.beginPath();ctx.moveTo(x+4,y+4);ctx.lineTo(x+TS-4,y+TS-4);ctx.stroke()
+          ctx.beginPath();ctx.moveTo(x+TS-4,y+4);ctx.lineTo(x+4,y+TS-4);ctx.stroke()
+          break}
         case TL.CP:{
           fr(x,y,TS,TS,P.cpBlue)
           for(let i=0;i<3;i++) for(let j=0;j<3;j++) fr(x+5+i*10,y+5+j*10,5,5,'rgba(100,130,200,0.2)')
@@ -488,7 +530,8 @@ export default function PixelOffice({activeAgentId}:Props){
           ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=0.7;ctx.beginPath();ctx.moveTo(x+TS/2,y+10);ctx.lineTo(x+TS/2,y+2);ctx.stroke()
           break}
         case TL.MT:{
-          const isLastRow=(tr===6),isFirstRow=(tr===2)
+          // 가로 배열: 아랫 행(5)에 다리 표시, 윗 행(4)에 도트
+          const isLastRow=(tr===5),isFirstRow=(tr===4)
           fr(x,y,TS,TS,(tc+tr)%2===0?P.fl:P.flD)
           if(isLastRow){
             fr(x+3,y+TOP+2,4,FACE,'#3a1808');fr(x+TS-7,y+TOP+2,4,FACE,'#3a1808')
@@ -549,9 +592,13 @@ export default function PixelOffice({activeAgentId}:Props){
         const shuffled=[...agRef.current].sort(()=>Math.random()-0.5)
         const cnt=2+Math.floor(Math.random()*3)
         shuffled.slice(0,cnt).forEach((ag,i)=>{
-          const ms=MEET_SEATS[i%MEET_SEATS.length]
-          ag.tx=2+ms.tc*TS+TS/2;ag.ty=2+(ms.tr+1)*TS+4
-          ag.mode='toMeet';ag.atMeet=false;ag.wp=[]  // 칸막이 없으므로 웨이포인트 불필요
+          const seatIdx=i%MEET_SEATS.length
+          ag.meetIdx=seatIdx
+          const ms=MEET_SEATS[seatIdx]
+          ag.tx=2+ms.tc*TS+TS/2
+          ag.ty=2+ms.tr*TS+TS/2   // ✅ 항상 의자 중심 (walkable!)
+          ag.mode='toMeet';ag.atMeet=false;ag.wp=[]
+          ag.timer=200  // ✅ 최대 200프레임 후 강제 착석
         })
       } else if(mt.active&&mt.cd<=0){
         mt.active=false;mt.cd=3500+Math.random()*2500
@@ -568,44 +615,42 @@ export default function PixelOffice({activeAgentId}:Props){
           const pool=ag.atMeet?MEET_SAY:(WORK_SAY[ag.def.id]||WORK_SAY.ops)
           ag.bubble=pool[Math.floor(Math.random()*pool.length)];ag.bubbleT=70+Math.random()*70
         }
-        // ── 개선된 moveTo: 8방향 시도 + 우회 경로 + stuck 감지 ──────
+        // ── 개선된 moveTo: 8방향 시도 + stuck 감지 + wf 제어 ──────────
         const moveTo=(tx:number,ty:number,spd=1.6)=>{
           const dx=tx-ag.x,dy=ty-ag.y,d=Math.hypot(dx,dy)
           if(d>4){
             const ndx=dx/d,ndy=dy/d
             const nx=ag.x+ndx*spd,ny=ag.y+ndy*spd
+            let actuallyMoved=false
 
             if(canWalk(nx,ny)){
-              ag.x=nx;ag.y=ny
-              ag.stuckTimer=0
+              ag.x=nx;ag.y=ny;ag.stuckTimer=0;actuallyMoved=true
             } else {
-              // 8방향 시도: 대각, 수직, 수평, 약간 비틀기
               const alts=[
-                [ndx*spd, 0],         // 수평
-                [0, ndy*spd],         // 수직
-                [ndx*spd, ndy*spd*0.5], // 절반 대각
-                [ndx*spd*0.5, ndy*spd], // 절반 대각
-                [-ndy*spd*0.8, ndx*spd*0.8], // 수직 방향으로 우회
-                [ndy*spd*0.8, -ndx*spd*0.8], // 반대 수직 방향
+                [ndx*spd, 0],
+                [0, ndy*spd],
+                [ndx*spd, ndy*spd*0.5],
+                [ndx*spd*0.5, ndy*spd],
+                [-ndy*spd*0.8, ndx*spd*0.8],
+                [ndy*spd*0.8, -ndx*spd*0.8],
               ]
-              let moved=false
               for(const[ox,oy] of alts){
                 if(canWalk(ag.x+ox,ag.y+oy)){
-                  ag.x+=ox;ag.y+=oy
-                  moved=true;ag.stuckTimer=0;break
+                  ag.x+=ox;ag.y+=oy;ag.stuckTimer=0;actuallyMoved=true;break
                 }
               }
-              if(!moved){
+              if(!actuallyMoved){
                 ag.stuckTimer++
-                // 오래 막히면 목표 포기하고 새 목표 탐색
-                if(ag.stuckTimer>60){
-                  ag.stuckTimer=0
-                  return true  // 도달한 것처럼 처리 → 새 목표 선택
-                }
+                ag.wf=0  // 막히면 걷기 모션 완전 정지!
+                if(ag.stuckTimer>60){ag.stuckTimer=0;return true}
               }
             }
-            ag.wf=(ag.wf+0.15)%4
-            if(Math.abs(dx)>Math.abs(dy)) ag.dir=dx>0?'r':'l';else ag.dir=dy>0?'d':'u'
+
+            if(actuallyMoved){
+              ag.wf=(ag.wf+0.15)%4  // 실제로 움직일 때만 보행 모션
+              if(Math.abs(dx)>Math.abs(dy)) ag.dir=dx>0?'r':'l'
+              else ag.dir=dy>0?'d':'u'
+            }
             return false
           }
           ag.stuckTimer=0
@@ -651,12 +696,22 @@ export default function PixelOffice({activeAgentId}:Props){
             else{if(moveTo(ag.tx,ag.ty,1.8)){ag.x=ag.sx;ag.y=ag.sy;ag.mode='sit';ag.dir=ag.def.sitDir;ag.wf=0;ag.timer=20+Math.random()*35}}
             break
           case 'toMeet':
-            if(ag.wp.length>0){if(moveTo(ag.wp[0].x,ag.wp[0].y,1.8)) ag.wp.shift()}
-            else{
-              if(moveTo(ag.tx,ag.ty,1.8)){
-                ag.mode='inMeet';ag.atMeet=true
-                const ms=MEET_SEATS[ag.meetIdx%MEET_SEATS.length];ag.dir=ms.side==='l'?'r':'l'
-                ag.bubble=MEET_SAY[Math.floor(Math.random()*MEET_SAY.length)];ag.bubbleT=60+Math.random()*60
+            ag.timer-=0.04
+            if(ag.wp.length>0){
+              if(moveTo(ag.wp[0].x,ag.wp[0].y,2.0)) ag.wp.shift()
+            } else {
+              const distToSeat=Math.hypot(ag.tx-ag.x,ag.ty-ag.y)
+              // ✅ 거리 충분히 가깝거나, 타이머 소진 시 강제 착석!
+              if(distToSeat<40 || ag.timer<=0){
+                ag.x=ag.tx; ag.y=ag.ty   // 좌석으로 순간이동
+                ag.wf=0                   // 걸음 애니 정지
+                ag.mode='inMeet'; ag.atMeet=true
+                const ms=MEET_SEATS[ag.meetIdx%MEET_SEATS.length]
+                ag.dir=ms.side==='t'?'d':'u'  // 위쪽→아래 바라봄, 아래쪽→위 바라봄
+                ag.bubble=MEET_SAY[Math.floor(Math.random()*MEET_SAY.length)]
+                ag.bubbleT=60+Math.random()*60
+              } else {
+                moveTo(ag.tx,ag.ty,2.0)  // 빠른 속도로 이동
               }
             }
             break
@@ -670,18 +725,16 @@ export default function PixelOffice({activeAgentId}:Props){
         const tile=mapRef.current[r]?.[c];if(tile) drawTile(tile,2+c*TS,2+r*TS,c,r)
       }
 
-      // 총괄실장 특별 구역 강조
-      const bosX=2+9*TS,bosY=2+2*TS,bosW=6*TS,bosH=3*TS
-      ctx.fillStyle=`rgba(255,200,80,${0.04+Math.sin(tick.current*0.8)*0.02})`
-      ctx.fillRect(bosX,bosY,bosW,bosH)
-      ctx.strokeStyle=`rgba(255,180,50,${0.4+Math.sin(tick.current*0.8)*0.15})`
-      ctx.lineWidth=2;ctx.setLineDash([6,4])
+      // 총괄실장 진노랑 존 테두리
+      const bosX=2+8*TS,bosY=2+2*TS,bosW=8*TS,bosH=3*TS
+      ctx.strokeStyle=`rgba(220,170,0,${0.55+Math.sin(tick.current*0.8)*0.15})`
+      ctx.lineWidth=2.5;ctx.setLineDash([6,4])
       ctx.strokeRect(bosX,bosY,bosW,bosH);ctx.setLineDash([])
-      rr(bosX+4,bosY-18,108,18,4,'rgba(100,60,10,0.88)')
-      ctx.font=`bold 11px ${FONT}`;ctx.fillStyle='#ffd080';ctx.textAlign='left'
+      rr(bosX+4,bosY-18,110,18,4,'rgba(160,110,0,0.9)')
+      ctx.font=`bold 11px ${FONT}`;ctx.fillStyle='#ffe070';ctx.textAlign='left'
       ctx.fillText('👑 총괄실장실',bosX+10,bosY-4)
 
-      // 콘텐츠존 테두리 (좌상단 2x2 구역)
+      // 콘텐츠존 주황 테두리
       const czX=2+1*TS,czY=2+2*TS,czW=7*TS,czH=7*TS
       ctx.strokeStyle='rgba(200,90,30,0.6)';ctx.lineWidth=2.5;ctx.setLineDash([8,5])
       ctx.strokeRect(czX,czY,czW,czH);ctx.setLineDash([])
@@ -689,12 +742,22 @@ export default function PixelOffice({activeAgentId}:Props){
       ctx.font=`bold 11px ${FONT}`;ctx.fillStyle='#fff';ctx.textAlign='left'
       ctx.fillText('✍️ 콘텐츠 본부',czX+8,czY-4)
 
-      // 회의실 명판
-      const mrX=2+20*TS,mrW=8*TS
-      rr(mrX,1,mrW,24,4,'rgba(28,22,55,0.9)')
-      ctx.strokeStyle='rgba(150,130,230,0.5)';ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(mrX,1,mrW,24,4);ctx.stroke()
-      ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,0.92)'
+      // 회의실 파랑 테두리 + 명판
+      const mrX=2+20*TS,mrW=7*TS
+      ctx.strokeStyle='rgba(60,110,220,0.45)';ctx.lineWidth=2;ctx.setLineDash([7,4])
+      ctx.strokeRect(mrX,2+1*TS,mrW,7*TS);ctx.setLineDash([])
+      rr(mrX,1,mrW,24,4,'rgba(20,40,100,0.92)')
+      ctx.strokeStyle='rgba(100,150,255,0.5)';ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(mrX,1,mrW,24,4);ctx.stroke()
+      ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';ctx.fillStyle='rgba(200,220,255,0.95)'
       ctx.fillText('🏢  회의실  ·  CONFERENCE ROOM',mrX+mrW/2,18);ctx.textAlign='left'
+
+      // CEO 비서 보라 테두리
+      const seX=2+20*TS,seY=2+10*TS,seW=7*TS,seH=4*TS
+      ctx.strokeStyle='rgba(130,70,210,0.5)';ctx.lineWidth=2;ctx.setLineDash([7,4])
+      ctx.strokeRect(seX,seY,seW,seH);ctx.setLineDash([])
+      rr(seX+4,seY-18,100,18,4,'rgba(80,30,160,0.9)')
+      ctx.font=`bold 11px ${FONT}`;ctx.fillStyle='#d0a0ff';ctx.textAlign='left'
+      ctx.fillText('🪄 CEO 비서실',seX+10,seY-4)
 
       // 스프라이트 렌더
       const sprites:{y:number;draw:()=>void}[]=[]
