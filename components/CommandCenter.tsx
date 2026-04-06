@@ -22,13 +22,14 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}일 전`
 }
 
-function statusInfo(s: TaskStatus) {
-  return {
+function statusInfo(s: TaskStatus): { text: string; dot: string; bg: string } {
+  const map: Record<TaskStatus, { text: string; dot: string; bg: string }> = {
     pending: { text: '대기중', dot: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
     running: { text: '실행중', dot: '#f97316', bg: 'rgba(249,115,22,0.15)' },
     done:    { text: '완료',   dot: '#22c55e', bg: 'rgba(34,197,94,0.15)'  },
     error:   { text: '오류',   dot: '#ef4444', bg: 'rgba(239,68,68,0.15)'  },
-  }[s]
+  }
+  return map[s]
 }
 
 // ── 조직도 ───────────────────────────────────────────────────

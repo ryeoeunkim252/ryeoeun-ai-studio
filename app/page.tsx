@@ -108,7 +108,32 @@ export default function Home() {
     const init = async () => {
       setSyncing(true)
       await syncFromCloud()
-      setSettings(loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS))
+
+      // ── 구 이름 → 신 이름 자동 마이그레이션 ──────────────────────
+      // Supabase에 저장된 옛날 팀 이름을 새 조직도 이름으로 자동 교체
+      const OLD_TO_NEW: Record<string, string> = {
+        '라우터':    '총괄실장',
+        '웹 팀':     '수익화팀장',
+        '콘텐츠 팀': '콘텐츠팀장',
+        '교육 팀':   '데이터팀장',
+        '연구 팀':   '전략실장',
+        '운영 팀':   '자동화팀장',
+      }
+      const stored = loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS)
+      const migratedNames = { ...stored.agentNames }
+      let changed = false
+      for (const [id, name] of Object.entries(migratedNames)) {
+        if (OLD_TO_NEW[name]) {
+          migratedNames[id] = OLD_TO_NEW[name]
+          changed = true
+        }
+      }
+      const finalSettings = changed
+        ? { ...stored, agentNames: migratedNames }
+        : stored
+      if (changed) await saveData('nk_settings', finalSettings)
+      setSettings(finalSettings)
+      // ─────────────────────────────────────────────────────────────
       setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
       setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
       setCustomTeams(loadData<CustomTeam[]>('nk_custom_teams', []))
