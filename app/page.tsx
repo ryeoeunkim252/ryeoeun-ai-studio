@@ -109,51 +109,31 @@ export default function Home() {
       setSyncing(true)
       await syncFromCloud()
 
-      // ── 구 이름 → 신 이름 자동 마이그레이션 ──────────────────────
-      // Supabase에 저장된 옛날 팀 이름을 새 조직도 이름으로 자동 교체
-      const OLD_TO_NEW: Record<string, string> = {
-        // 1단계: 아주 옛날 이름
-        '라우터':    '총괄실장',
-        '웹 팀':     '수익화팀',
-        '콘텐츠 팀': '콘텐츠팀',
-        '교육 팀':   '데이터팀',
-        '연구 팀':   '전략기획실',
-        '운영 팀':   '자동화팀',
-        // 2단계: 중간 이름 (팀장 → 팀/기획실)
-        '전략실장':  '전략기획실',
-        '콘텐츠팀장':'콘텐츠팀',
-        '수익화팀장':'수익화팀',
-        '자동화팀장':'자동화팀',
-        '데이터팀장':'데이터팀',
-      }
+      // ── 에이전트 이름 강제 고정 (어떤 값이 저장됐든 무조건 덮어씀) ─
       const stored = loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS)
-      const migratedNames = { ...stored.agentNames }
-      let changed = false
-      for (const [id, name] of Object.entries(migratedNames)) {
-        if (OLD_TO_NEW[name]) {
-          migratedNames[id] = OLD_TO_NEW[name]
-          changed = true
-        }
+      const FORCED_NAMES: Record<string, string> = {
+        router:   '총괄실장',
+        research: '전략기획실',
+        content:  '콘텐츠팀',
+        web:      '수익화팀',
+        ops:      '자동화팀',
+        edu:      '데이터팀',   // ← 이게 핵심! 항상 데이터팀으로 강제
       }
-      const finalSettings = changed
-        ? { ...stored, agentNames: migratedNames }
-        : stored
-      if (changed) await saveData('nk_settings', finalSettings)
-      setSettings(finalSettings)
+      const forcedSettings = {
+        ...stored,
+        agentNames: { ...stored.agentNames, ...FORCED_NAMES }
+      }
+      await saveData('nk_settings', forcedSettings)
+      setSettings(forcedSettings)
 
       // ── 불필요한 커스텀 팀 삭제 (전략기획실, 디자인팀 등 구 커스텀 팀) ──
       await saveData('nk_custom_teams', [])
       setCustomTeams([])
 
-      // ── 에이전트 순서도 리셋 (새 조직도 순서로) ──────────────
+      // ── 에이전트 순서 강제 리셋 (항상 올바른 순서로) ────────────
       const CORRECT_ORDER = ['router', 'research', 'content', 'web', 'ops', 'edu']
-      const savedOrder = loadData<string[]>('nk_team_order', [])
-      const needsOrderReset = savedOrder.length === 0 ||
-        JSON.stringify(savedOrder.slice(0, 6)) !== JSON.stringify(CORRECT_ORDER)
-      if (needsOrderReset) {
-        await saveData('nk_team_order', CORRECT_ORDER)
-        setAgentOrder(CORRECT_ORDER)
-      }
+      await saveData('nk_team_order', CORRECT_ORDER)
+      setAgentOrder(CORRECT_ORDER)
       // ─────────────────────────────────────────────────────────────
       setLogs(loadData<ExtChatLog[]>('nk_chatlogs', []))
       setSavedLogs(loadData<ExtChatLog[]>('nk_savedlogs', []))
@@ -391,7 +371,7 @@ export default function Home() {
       <div className="flex flex-1 overflow-hidden" style={{ display:'grid',gridTemplateColumns:'210px 1fr 270px' }}>
 
         {/* ── 왼쪽 사이드바 ── */}
-        <aside className="flex flex-col overflow-hidden" style={{ background:'var(--sidebar)',borderRight:'1px solid var(--sidebar-b)' }}>
+        <aside className="flex flex-col min-h-0 overflow-hidden" style={{ background:'var(--sidebar)',borderRight:'1px solid var(--sidebar-b)' }}>
           {/* 프로필 */}
           <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom:'1px solid var(--sidebar-b)' }}>
             <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background:'var(--blush)',color:'#fff' }}>
@@ -403,27 +383,30 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 네비게이션 (Settings에서 저장한 순서 반영) */}
-          <nav className="py-2 flex-shrink-0">
-            {NAV.map(item => (
-              <button key={item.id} onClick={() => setPage(item.id)}
-                className="w-full px-4 py-2.5 flex items-center gap-3 text-[13px] transition-all"
-                style={{
-                  background: page===item.id?'var(--sidebar-b)':'transparent',
-                  color: page===item.id?'var(--blush)':'#ffffff',
-                  borderLeft: `3px solid ${page===item.id?'var(--blush)':'transparent'}`,
-                  fontWeight: page===item.id?700:400,
-                }}>
-                <span style={{ fontSize:14 }}>{item.icon}</span>{item.label}
-              </button>
-            ))}
-          </nav>
+          {/* 네비게이션 + AI 에이전트 — 하나의 스크롤 영역 */}
+          <div className="flex-1 overflow-y-auto min-h-0">
 
-          <div className="mx-4 my-2 h-px" style={{ background:'var(--sidebar-b)' }} />
-          <div className="px-4 py-1 text-[10px] font-medium tracking-widest" style={{ color:'var(--blush-b)' }}>AI 에이전트</div>
+            {/* 네비게이션 */}
+            <nav className="py-2">
+              {NAV.map(item => (
+                <button key={item.id} onClick={() => setPage(item.id)}
+                  className="w-full px-4 py-2.5 flex items-center gap-3 text-[13px] transition-all"
+                  style={{
+                    background: page===item.id?'var(--sidebar-b)':'transparent',
+                    color: page===item.id?'var(--blush)':'#ffffff',
+                    borderLeft: `3px solid ${page===item.id?'var(--blush)':'transparent'}`,
+                    fontWeight: page===item.id?700:400,
+                  }}>
+                  <span style={{ fontSize:14 }}>{item.icon}</span>{item.label}
+                </button>
+              ))}
+            </nav>
 
-          {/* ── 에이전트 목록 (저장된 순서 + 콘텐츠팀 서브팀 표기) ── */}
-          <div className="flex-1 overflow-y-auto px-2 pb-2">
+            <div className="mx-4 my-2 h-px" style={{ background:'var(--sidebar-b)' }} />
+            <div className="px-4 py-1 text-[10px] font-medium tracking-widest" style={{ color:'var(--blush-b)' }}>AI 에이전트</div>
+
+            {/* ── 에이전트 목록 ── */}
+            <div className="px-2 pb-2">
             {sortedAgents.flatMap(agent => {
               const isActive = activeAgentId === agent.id
               const color    = AGENT_ACCENT[agent.id] || 'var(--blush)'
@@ -496,6 +479,7 @@ export default function Home() {
               )
             })}
           </div>
+          </div>{/* 스크롤 영역 닫기 */}
 
           {/* 모델/상태 표시 */}
           <div className="px-3 py-3 flex-shrink-0" style={{ borderTop:'1px solid var(--sidebar-b)' }}>
