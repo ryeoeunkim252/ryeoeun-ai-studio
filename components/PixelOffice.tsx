@@ -1,725 +1,946 @@
 'use client'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AgentId } from '@/lib/agents'
 import { loadData, DEFAULT_SETTINGS, type AppSettings } from '@/lib/store'
 
 interface Props { activeAgentId?: AgentId | null }
 
-const TS   = 32
+// ═══════════════════════════════════════════
+//  상수
+// ═══════════════════════════════════════════
+const TS = 32          // 타일 크기
 const COLS = 28
 const ROWS = 16
-const CANVAS_W = 898
-const CANVAS_H = 518
+const CW = 898
+const CH = 518
+const CP = 3           // 캐릭터 픽셀 1개 = 3 캔버스 픽셀
+const CG_W = 9         // 캐릭터 그리드 가로
+const CG_H = 18        // 캐릭터 그리드 세로
+const CHAR_W = CG_W * CP  // = 27
+const CHAR_H = CG_H * CP  // = 54
 
-// ── 픽셀 1개의 실제 크기 (2px = 작은 픽셀아트) ──
-const PX = 2
-
-// ── 캐릭터 스프라이트 정의 (16x24 픽셀 그리드) ──
-// 0=투명, H=머리색, S=피부색, B=몸통색, L=다리색, E=눈, M=입, K=신발, A=악세서리, T=어두운몸통, D=어두운다리
-// 스프라이트는 아래방향(d) 기준
-const SPRITE_D = [
-  '  0HHHHHHHH0   ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HSSSSSSSH0   ',
-  ' 0SE00SS00ES0  ',
-  ' 0SSESSSSE0S0  ',
-  ' 0SSSSMSSSS0   ',
-  ' 0HHHHHHHHHH0  ',
-  ' BBBBBBBBBB    ',
-  'TBBBBBBBBBBBT  ',
-  'TBBBBBBBBBBBT  ',
-  'TBBBBBBBBBBBT  ',
-  ' BBBBBBBBBB    ',
-  ' LLLL  LLLL    ',
-  ' LLLL  LLLL    ',
-  ' LLLL  LLLL    ',
-  ' KKKK  KKKK    ',
-]
-
-const SPRITE_U = [
-  '  0HHHHHHHH0   ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HHHHHHHHHH0  ',
-  ' BBBBBBBBBB    ',
-  'TBBBBBBBBBBBT  ',
-  'TBBBBBBBBBBBT  ',
-  'TBBBBBBBBBBBT  ',
-  ' BBBBBBBBBB    ',
-  ' LLLL  LLLL    ',
-  ' LLLL  LLLL    ',
-  ' LLLL  LLLL    ',
-  ' KKKK  KKKK    ',
-]
-
-const SPRITE_R = [
-  '  0HHHHHHHH0   ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HSSSSSSH00   ',
-  ' 0SE0SSSSH0    ',
-  ' 0SSESSSH0     ',
-  ' 0SSSMSSH0     ',
-  ' 0HHHHHHHH0    ',
-  '  BBBBBBBBT    ',
-  'TBBBBBBBBBT    ',
-  'TBBBBBBBBBT    ',
-  'TBBBBBBBBBT    ',
-  '  BBBBBBBBT    ',
-  '  LLLLLLL      ',
-  '  LLLLLLL      ',
-  '   LLLLL       ',
-  '   KKKKK       ',
-]
-
-const SPRITE_L = [
-  '   0HHHHHHHH0  ',
-  '  0HHHHHHHHHH0 ',
-  '   00HSSSSSS0  ',
-  '    0HSSSS0E0  ',
-  '     0HSSSE0   ',
-  '     0HSSM0    ',
-  '    0HHHHHH0   ',
-  '    TBBBBBBBB  ',
-  '    TBBBBBBBT  ',
-  '    TBBBBBBBT  ',
-  '    TBBBBBBBT  ',
-  '    TBBBBBBBB  ',
-  '      LLLLLLL  ',
-  '      LLLLLLL  ',
-  '       LLLLL   ',
-  '       KKKKK   ',
-]
-
-// 걷기 애니메이션 - 다리 흔들림 변형
-const WALK_FRAME1_D = [
-  '  0HHHHHHHH0   ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HSSSSSSSH0   ',
-  ' 0SE00SS00ES0  ',
-  ' 0SSESSSSE0S0  ',
-  ' 0SSSSMSSSS0   ',
-  ' 0HHHHHHHHHH0  ',
-  ' BBBBBBBBBB    ',
-  'TBBBBBBBBBBBT  ',
-  'TBBBBBBBBBBBT  ',
-  'TBBBBBBBBBBBT  ',
-  ' BBBBBBBBBB    ',
-  ' LLLLL LLLL    ',
-  '  LLLL  LLL    ',
-  '  LLLL  LLL    ',
-  '  KKKK  KKK    ',
-]
-
-const WALK_FRAME2_D = [
-  '  0HHHHHHHH0   ',
-  ' 0HHHHHHHHHH0  ',
-  ' 0HSSSSSSSH0   ',
-  ' 0SE00SS00ES0  ',
-  ' 0SSESSSSE0S0  ',
-  ' 0SSSSMSSSS0   ',
-  ' 0HHHHHHHHHH0  ',
-  ' BBBBBBBBBB    ',
-  'TBBBBBBBBBBBT  ',
-  'TBBBBBBBBBBBT  ',
-  'TBBBBBBBBBBBT  ',
-  ' BBBBBBBBBB    ',
-  ' LLLL LLLLL    ',
-  ' LLL  LLLL     ',
-  ' LLL  LLLL     ',
-  ' KKK  KKKK     ',
-]
-
-// ── 타일 타입 ───────────────────────────────
-const TL = {
+// ═══════════════════════════════════════════
+//  타일 타입
+// ═══════════════════════════════════════════
+const T = {
   F:1, W:2, SH:3, SK:4, DK:5, MN:6, CH:7, PL:8, CP:9, DV:10,
-  WB:11, MT:12, ME:13, SF:14, SA:15, FR:16, WT:17,
+  WB:11, MT:12, ME:13, SF:14, SA:15, FR:16, WT:17, RG:18, MT2:19,
 } as const
 
-const C = {
-  fl:'#c8c4ae', fl2:'#b8b49e',
-  wl:'#9a8c76', wlT:'#c0a870', wlD:'#6a5c48',
-  sf_wood:'#8a6030', sf_woodL:'#aa7840', sf_woodD:'#6a4020',
-  bk:['#e04040','#3880e8','#38a038','#e89828','#9828e8','#e85878','#28a8c0'],
-  dk:'#c49040', dkL:'#e0a848', dkD:'#9a7028', dkF:'#785018',
-  mn:'#141428', mnG:'#30c878',
-  ch:['#7060a0','#5070a0','#906050','#708848','#806050','#507068'],
-  pl1:'#48b848', pl2:'#288028',
-  pot:'#b85028', potL:'#d87040',
-  cp:'#403888', cpL:'#504898',
-  mt:'#6a4018', mtL:'#9a6028', mtD:'#4a2a08',
-  so:'#b82858', soL:'#d84070', soD:'#782038', soA:'#501028',
-  wb:'#f0f0e8', wbB:'#787060',
-  fr:['#c07830','#8038a0','#3868b0'],
-}
-
-const {F,W,SH,SK,DK,MN,CH,PL,CP,DV,WB,MT,ME,SF,SA,FR,WT} = TL
-const BASE_MAP: number[][] = [
-  [W, W, W, W, W, W, W, W,SK, W, W, W, W, W, W, W, W,DV, W,WB,WB,WB,WB,WB,WB, W, W, W],
-  [W,SH,SH,SH,SH,SH,SH,SH,SH,SH,SH,SH,SH,SH,SH,SH, W,DV,WT, F, F, F, F, F, F,WT, F,WT],
-  [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,DV, F, F, F, F, F, F, F, F, F, F],
-  [F, F,MN, F, F, F,MN, F, F, F,MN, F, F, F, F, F, F,DV, F, F,ME,ME,ME,ME,ME, F, F, F],
-  [F, F,DK,DK, F, F,DK,DK, F, F,DK,DK, F, F, F, F, F,DV, F, F,ME,MT,MT,MT,ME, F, F, F],
-  [F, F,CH, F, F, F,CH, F, F, F,CH, F, F, F, F, F, F,DV, F, F,ME,MT,MT,MT,ME, F, F, F],
-  [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,DV, F, F,ME,MT,MT,MT,ME, F, F, F],
-  [F,CP,CP,CP,CP,CP,CP,CP,CP,CP,CP,CP,CP,CP,CP, F, F,DV, F, F,ME,ME,ME,ME,ME, F, F, F],
-  [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,DV, F, F, F, F, F, F, F, F, F, F],
-  [F, F,MN, F, F, F,MN, F, F, F,MN, F, F, F, F, F, F,DV, F,SA,SF,SF,SF,SF,SF,SF,SA, F],
-  [F, F,DK,DK, F, F,DK,DK, F, F,DK,DK, F, F, F, F, F,DV, F,SA,SF,SF,SF,SF,SF,SF,SA, F],
-  [F, F,CH, F, F, F,CH, F, F, F,CH, F, F, F, F, F, F,DV, F, F, F, F, F, F, F, F, F, F],
-  [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,DV, F,FR, F, F, F, F, F,FR, F, F],
-  [F,PL, F, F, F, F, F, F, F, F, F, F, F, F, F,PL, F,DV, F,PL, F, F, F, F, F,PL, F, F],
-  [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,DV, F, F, F, F, F, F, F, F, F, F],
-  [W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W,DV, W, W, W, W, W, W, W, W, W, W],
+// ═══════════════════════════════════════════
+//  기본 에이전트 (디자인팀 추가)
+// ═══════════════════════════════════════════
+const DEFAULT_AGENTS = [
+  { id:'router',  name:'총괄실장', hair:'#2a1a5a', skin:'#f4c890', shirt:'#1e3a5f', pants:'#0f1e30', shoes:'#080810', accent:'#e74c3c', hatStyle:'suit'   },
+  { id:'web',     name:'웹 팀',   hair:'#18a8c0', skin:'#fde3a7', shirt:'#2980b9', pants:'#1a4060', shoes:'#101020', accent:'#f1c40f', hatStyle:'none'   },
+  { id:'content', name:'콘텐츠팀', hair:'#c0508a', skin:'#fad7a0', shirt:'#8e44ad', pants:'#3d1a5e', shoes:'#180818', accent:'#e91e63', hatStyle:'bow'    },
+  { id:'research',name:'연구 팀',  hair:'#304010', skin:'#f0c896', shirt:'#27ae60', pants:'#0f5230', shoes:'#081008', accent:'#2ecc71', hatStyle:'glass'  },
+  { id:'edu',     name:'교육 팀',  hair:'#0a0a0a', skin:'#fdebd0', shirt:'#d35400', pants:'#5a2200', shoes:'#180808', accent:'#f39c12', hatStyle:'cap'    },
+  { id:'ops',     name:'운영 팀',  hair:'#0a0a0a', skin:'#c8956c', shirt:'#2c3e50', pants:'#101820', shoes:'#060808', accent:'#1abc9c', hatStyle:'none'   },
+  { id:'design',  name:'디자인팀', hair:'#e8c050', skin:'#f8d8b0', shirt:'#c0392b', pants:'#280a18', shoes:'#100808', accent:'#ff6b6b', hatStyle:'beret'  },
 ]
-
-// ── 에이전트 정의 ───────────────────────────
-const AGENT_DEF = [
-  {id:'router',  name:'총괄실장', body:'#1e3a5f', bodyD:'#0f1e30', skin:'#f4c890', hat:'#c0392b', leg:'#0f1e30', shoe:'#080808', accent:'#e74c3c', seat:{tc:2, tr:5}},
-  {id:'web',     name:'웹 팀',   body:'#2980b9', bodyD:'#1a5f8a', skin:'#fde3a7', hat:'#f39c12', leg:'#1a4060', shoe:'#101020', accent:'#f1c40f', seat:{tc:6, tr:5}},
-  {id:'content', name:'콘텐츠 팀',body:'#8e44ad', bodyD:'#5e2d7a', skin:'#fad7a0', hat:'#e91e63', leg:'#3d1a5e', shoe:'#180818', accent:'#e91e63', seat:{tc:10,tr:5}},
-  {id:'research',name:'연구 팀',  body:'#27ae60', bodyD:'#1a7a40', skin:'#f0c896', hat:'#1abc9c', leg:'#0f5230', shoe:'#081008', accent:'#2ecc71', seat:{tc:2, tr:11}},
-  {id:'edu',     name:'교육 팀',  body:'#d35400', bodyD:'#8a3800', skin:'#fdebd0', hat:'#e67e22', leg:'#5a2200', shoe:'#180808', accent:'#f39c12', seat:{tc:6, tr:11}},
-  {id:'ops',     name:'운영 팀',  body:'#2c3e50', bodyD:'#1a2530', skin:'#c8956c', hat:'#16a085', leg:'#101820', shoe:'#060808', accent:'#1abc9c', seat:{tc:10,tr:11}},
-]
-type AgDef = typeof AGENT_DEF[0]
+type AgDef = typeof DEFAULT_AGENTS[0] & { seat: {tc:number;tr:number} }
 type CT = {id:string;icon:string;name:string}
 
-const FURNITURE_ITEMS = [
-  { key:'desk',   label:'책상', tile:DK, icon:'🪑' },
-  { key:'chair',  label:'의자', tile:CH, icon:'💺' },
-  { key:'plant',  label:'화분', tile:PL, icon:'🌿' },
-  { key:'carpet', label:'카펫', tile:CP, icon:'🟪' },
-  { key:'sofa',   label:'소파', tile:SF, icon:'🛋️' },
-  { key:'shelf',  label:'책장', tile:SH, icon:'📚' },
+// ═══════════════════════════════════════════
+//  책상 배치 (중요도 순, 자동 확장)
+// ═══════════════════════════════════════════
+// 각 팀 좌석: [col, row] (책상 위치 기준)
+const SEAT_POSITIONS = [
+  { tc:2,  tr:3  },  // router   - 총괄 (맨 앞 중앙)
+  { tc:7,  tr:3  },  // web
+  { tc:12, tr:3  },  // content
+  { tc:2,  tr:8  },  // research
+  { tc:7,  tr:8  },  // edu
+  { tc:12, tr:8  },  // ops
+  { tc:2,  tr:12 },  // design
+  // 커스텀 팀 (자동)
+  { tc:7,  tr:12 },
+  { tc:12, tr:12 },
+  { tc:2,  tr:14 },
+  { tc:7,  tr:14 },
+  { tc:12, tr:14 },
 ]
 
+// ═══════════════════════════════════════════
+//  회의실 좌석 위치 (col 19-26, row 1-7)
+// ═══════════════════════════════════════════
+const MEETING_SEATS = [
+  {tc:21,tr:3},{tc:22,tr:3},{tc:23,tr:3},{tc:24,tr:3},
+  {tc:21,tr:6},{tc:22,tr:6},{tc:23,tr:6},{tc:24,tr:6},
+]
+
+// ═══════════════════════════════════════════
+//  기본 맵 생성 함수
+// ═══════════════════════════════════════════
+const {F,W,SH,SK,DK,MN,CH,PL,CP:CP_T,DV,WB,MT,ME,SF,SA,FR,WT,RG,MT2} = T
+
+function buildMap(agents: AgDef[]): number[][] {
+  const map: number[][] = Array.from({length:ROWS}, () => Array(COLS).fill(F))
+
+  // 외벽
+  for(let c=0;c<COLS;c++) { map[0][c]=W; map[ROWS-1][c]=W }
+  for(let r=0;r<ROWS;r++) { map[r][0]=W }
+
+  // 칸막이 (구역 구분)
+  for(let r=0;r<ROWS;r++) map[r][17]=DV
+
+  // 책장 (상단 벽)
+  for(let c=1;c<17;c++) map[1][c]=SH
+
+  // 시계
+  map[0][8]=SK
+
+  // ── 팀 책상/의자 자동 배치 ──
+  agents.forEach((ag, i) => {
+    const s = SEAT_POSITIONS[i]
+    if (!s || s.tr >= ROWS-1) return
+    // 책상 2칸
+    if(s.tc+1 < 17) {
+      map[s.tr][s.tc]   = DK
+      map[s.tr][s.tc+1] = MN  // 모니터는 DK 위
+    }
+    // 의자
+    if(s.tr+1 < ROWS-1) map[s.tr+1][s.tc] = CH
+    // 화분 (가끔)
+    if(i % 3 === 2 && s.tc+3 < 17) map[s.tr][s.tc+3] = PL
+  })
+
+  // ── 회의실 (오른쪽) ──
+  // 회의실 경계
+  for(let r=1;r<8;r++) {
+    map[r][18]=WT; map[r][27]=WT
+  }
+  map[1][18]=WB  // 화이트보드
+  // 회의 테이블
+  for(let c=20;c<=25;c++) {
+    map[3][c]=MT; map[4][c]=MT; map[5][c]=MT
+  }
+  // 회의 의자
+  for(let c=20;c<=25;c++) { map[2][c]=CH; map[6][c]=CH }
+  map[3][19]=CH; map[4][19]=CH; map[3][26]=CH; map[4][26]=CH
+
+  // ── 휴게실 (오른쪽 하단) ──
+  map[9][19]=SA; map[9][20]=SF; map[9][21]=SF; map[9][22]=SA
+  map[10][19]=SA; map[10][20]=SF; map[10][21]=SF; map[10][22]=SA
+  map[9][24]=PL; map[9][26]=PL
+  map[11][24]=FR; map[11][25]=FR
+
+  // 바닥 카펫 (복도)
+  for(let c=1;c<17;c++) {
+    map[7][c]=CP_T
+    map[11][c]=CP_T
+  }
+
+  // 화분 (벽 근처)
+  map[14][1]=PL; map[14][5]=PL; map[14][9]=PL; map[14][13]=PL; map[14][16]=PL
+  map[14][20]=PL; map[14][24]=PL
+
+  return map
+}
+
+// ═══════════════════════════════════════════
+//  에이전트 상태 타입
+// ═══════════════════════════════════════════
+type AgMode = 'sit'|'walk'|'return'|'meeting'|'meetReturn'|'roam'
 type AgState = {
-  def: AgDef; x: number; y: number; sx: number; sy: number
-  tx: number; ty: number; state: 'sit'|'walk'|'return'
-  dir: 'u'|'d'|'l'|'r'; frame: number; timer: number; walksLeft: number
-}
-type PlayerState = {
-  x: number; y: number; dir: 'u'|'d'|'l'|'r'; frame: number; moving: boolean
+  def: AgDef
+  x: number; y: number
+  sx: number; sy: number   // 원래 좌석
+  tx: number; ty: number   // 목표
+  mode: AgMode
+  dir: 'u'|'d'|'l'|'r'
+  frame: number
+  timer: number
+  walksLeft: number
+  meetSeat: number         // 회의 좌석 인덱스
+  bubble: string
+  bubbleTimer: number
 }
 
-// 캐릭터 픽셀 크기 (스프라이트 1픽셀 = PX*PX 캔버스픽셀)
-const SPW = 16 * PX  // 스프라이트 너비
-const SPH = 16 * PX  // 스프라이트 높이
+const WORK_BUBBLES: Record<string, string[]> = {
+  router:  ['업무 배분중','회의 소집!','전략 수립','보고 검토'],
+  web:     ['코딩중...','버그 수정','PR 리뷰','배포 준비'],
+  content: ['글 작성중','SNS 기획','영상 편집','카피 작성'],
+  research:['데이터 분석','시장 조사','보고서 작성','트렌드 탐색'],
+  edu:     ['강의 준비','교안 작성','학습 설계','자료 정리'],
+  ops:     ['서버 점검','자동화 설정','모니터링','배포 중'],
+  design:  ['UI 디자인','피그마 작업','아이콘 제작','화면 설계'],
+}
+const MEET_BUBBLES = ['회의중...','아이디어!','좋은데요?','그렇군요','검토해봐요','진행합시다']
 
+// ═══════════════════════════════════════════
+//  메인 컴포넌트
+// ═══════════════════════════════════════════
 export default function PixelOffice({ activeAgentId }: Props) {
-  const cvRef   = useRef<HTMLCanvasElement>(null)
-  const tick    = useRef(0)
-  const actRef  = useRef<AgentId|null|undefined>(null)
-  const setRef  = useRef<AppSettings>(DEFAULT_SETTINGS)
-  const agRef   = useRef<AgState[]>([])
-  const mapRef  = useRef<number[][]>(BASE_MAP.map(r => [...r]))
-  const playerRef = useRef<PlayerState>({ x: 2+8*TS+SPW/2, y: 2+8*TS+SPH, dir:'d', frame:0, moving:false })
-  const keysRef = useRef<Set<string>>(new Set())
+  const cvRef  = useRef<HTMLCanvasElement>(null)
+  const tick   = useRef(0)
+  const actRef = useRef<AgentId|null|undefined>(null)
+  const setRef = useRef<AppSettings>(DEFAULT_SETTINGS)
+  const agRef  = useRef<AgState[]>([])
+  const mapRef = useRef<number[][]>([])
+  const meetRef = useRef<{active:boolean; timer:number; count:number}>({active:false,timer:600,count:0})
 
-  const [mode, setMode] = useState<'play'|'decorate'>('play')
-  const [selectedTile, setSelectedTile] = useState<number>(CP)
-  const [nearAgent, setNearAgent] = useState<string|null>(null)
-  const modeRef = useRef<'play'|'decorate'>('play')
-  const selTileRef = useRef<number>(CP)
-
-  useEffect(() => { modeRef.current = mode }, [mode])
-  useEffect(() => { selTileRef.current = selectedTile }, [selectedTile])
   useEffect(() => { actRef.current = activeAgentId }, [activeAgentId])
 
   useEffect(() => {
-    setRef.current = loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS)
-    agRef.current = AGENT_DEF.map(def => {
-      const sx = 2 + def.seat.tc * TS + SPW/2
-      const sy = 2 + def.seat.tr * TS + TS
-      return { def, x:sx, y:sy, sx, sy, tx:sx, ty:sy, state:'sit', dir:'u', frame:0, timer:20+Math.random()*20, walksLeft:0 }
+    const s = loadData<AppSettings>('nk_settings', DEFAULT_SETTINGS)
+    const cts = loadData<CT[]>('nk_custom_teams', [])
+    setRef.current = s
+
+    // 모든 에이전트 (기본 + 커스텀)
+    const customColors = [
+      {hair:'#c0c0c8',skin:'#f4c080',shirt:'#4040a0',pants:'#202060',shoes:'#080810',accent:'#8080ff',hatStyle:'none'},
+      {hair:'#482010',skin:'#fde3a7',shirt:'#902018',pants:'#400808',shoes:'#180808',accent:'#ff6060',hatStyle:'bow'},
+      {hair:'#104830',skin:'#f0c896',shirt:'#208848',pants:'#083018',shoes:'#081008',accent:'#50e870',hatStyle:'none'},
+      {hair:'#503008',skin:'#f8d090',shirt:'#806020',pants:'#403010',shoes:'#181008',accent:'#ffa030',hatStyle:'cap'},
+    ]
+
+    const allAgents: AgDef[] = [
+      ...DEFAULT_AGENTS.map((d, i) => ({...d, seat: SEAT_POSITIONS[i]})),
+      ...cts.slice(0, 4).map((ct, i) => ({
+        id: ct.id, name: ct.name, seat: SEAT_POSITIONS[DEFAULT_AGENTS.length + i],
+        ...customColors[i % customColors.length],
+      }))
+    ]
+
+    // 맵 생성
+    mapRef.current = buildMap(allAgents)
+
+    // 에이전트 초기화
+    agRef.current = allAgents.map((def, i) => {
+      const s = SEAT_POSITIONS[i]
+      const sx = 2 + s.tc * TS + CHAR_W/2
+      const sy = 2 + (s.tr+1) * TS + TS/2
+      const bubbles = WORK_BUBBLES[def.id] || WORK_BUBBLES.ops
+      return {
+        def, x:sx, y:sy, sx, sy, tx:sx, ty:sy,
+        mode:'sit' as AgMode, dir:'u', frame:0,
+        timer: 60 + Math.random()*120,
+        walksLeft:0, meetSeat: i % MEETING_SEATS.length,
+        bubble: bubbles[Math.floor(Math.random()*bubbles.length)],
+        bubbleTimer: 80 + Math.random()*80,
+      }
     })
   }, [])
 
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      keysRef.current.add(e.key.toLowerCase())
-      if (e.key === 'f' || e.key === 'F') setMode(m => m === 'play' ? 'decorate' : 'play')
-    }
-    const up = (e: KeyboardEvent) => { keysRef.current.delete(e.key.toLowerCase()) }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [])
-
-  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (modeRef.current !== 'decorate') return
-    const cv = cvRef.current; if (!cv) return
-    const rect = cv.getBoundingClientRect()
-    const mx = (e.clientX - rect.left) * (CANVAS_W / rect.width)
-    const my = (e.clientY - rect.top) * (CANVAS_H / rect.height)
-    const tc = Math.floor((mx - 2) / TS)
-    const tr = Math.floor((my - 2) / TS)
-    if (tc >= 0 && tc < COLS && tr >= 0 && tr < ROWS) {
-      const t = mapRef.current[tr]?.[tc]
-      if (t === TL.F || t === TL.CP || t === TL.CH || t === TL.PL || t === TL.FR) {
-        mapRef.current[tr][tc] = selTileRef.current
-      }
-    }
-  }, [])
-
+  // ═══════════════════════════════════════════
+  //  게임 루프
+  // ═══════════════════════════════════════════
   useEffect(() => {
     const cv = cvRef.current; if (!cv) return
     const ctx = cv.getContext('2d')!
     ctx.imageSmoothingEnabled = false
 
-    const r = (x:number,y:number,w:number,h:number,c:string) => {
+    const px = (x:number,y:number,w:number,h:number,c:string) => {
       if(w<=0||h<=0) return
       ctx.fillStyle=c; ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))
     }
-    const tpx = (tc:number) => 2 + tc*TS
-    const tpy = (tr:number) => 2 + tr*TS
+    const tpx = (tc:number) => 2+tc*TS
+    const tpy = (tr:number) => 2+tr*TS
 
-    const canWalk = (wx:number,wy:number):boolean => {
+    const canWalk = (wx:number,wy:number) => {
       const tc=Math.floor((wx-2)/TS), tr=Math.floor((wy-2)/TS)
       if(tc<0||tc>=COLS||tr<0||tr>=ROWS) return false
       const t=mapRef.current[tr]?.[tc]
-      return t===TL.F||t===TL.CP
+      return t===T.F||t===T.CP
     }
 
-    const walkTarget = ():{tx:number,ty:number} => {
-      for(let i=0;i<30;i++){
-        const tc=1+Math.floor(Math.random()*14)
-        const tr=2+Math.floor(Math.random()*12)
-        if(mapRef.current[tr]?.[tc]===TL.F||mapRef.current[tr]?.[tc]===TL.CP)
+    const randTarget = (leftSide=true):{tx:number,ty:number} => {
+      for(let i=0;i<40;i++){
+        const tc = leftSide ? 1+Math.floor(Math.random()*15) : 19+Math.floor(Math.random()*7)
+        const tr = 2+Math.floor(Math.random()*11)
+        if(mapRef.current[tr]?.[tc]===T.F||mapRef.current[tr]?.[tc]===T.CP)
           return {tx:tpx(tc)+TS/2, ty:tpy(tr)+TS/2}
       }
-      return {tx:tpx(8)+TS/2, ty:tpy(8)+TS/2}
+      return {tx:tpx(5)+TS/2, ty:tpy(7)+TS/2}
     }
 
-    // ── 픽셀 스프라이트 렌더러 ──────────────
-    const drawPixelSprite = (
-      px: number, py: number,
-      grid: string[],
-      def: AgDef | null,
-      isPlayer: boolean
-    ) => {
-      const skin  = isPlayer ? '#f4c890' : def!.skin
-      const body  = isPlayer ? '#c03030' : def!.body
-      const bodyD = isPlayer ? '#8a1a1a' : def!.bodyD
-      const hat   = isPlayer ? '#ffe030' : def!.hat
-      const leg   = isPlayer ? '#303060' : def!.leg
-      const shoe  = isPlayer ? '#181818' : def!.shoe
-
-      for (let row = 0; row < grid.length; row++) {
-        for (let col = 0; col < grid[row].length; col++) {
-          const ch = grid[row][col]
-          let color: string | null = null
-          switch(ch) {
-            case 'H': color = hat; break
-            case 'S': color = skin; break
-            case 'B': color = body; break
-            case 'T': color = bodyD; break
-            case 'L': color = leg; break
-            case 'K': color = shoe; break
-            case 'E': color = '#1a0a2e'; break   // 눈
-            case 'M': color = '#c0304a'; break   // 입
-            case '0': color = '#000000'; break   // 외곽선
-            default: color = null
-          }
-          if (color) {
-            r(px + col * PX, py + row * PX, PX, PX, color)
-          }
-        }
-      }
-    }
-
-    // ── 타일 렌더러 ─────────────────────────
-    const TILE_RENDER: Record<number,(x:number,y:number,tc:number,tr:number)=>void> = {
-      [TL.F]: (x,y,tc,tr) => {
-        r(x,y,TS,TS,(tc+tr)%2===0?C.fl:C.fl2)
-        ctx.strokeStyle='rgba(0,0,0,0.05)'; ctx.lineWidth=0.5; ctx.strokeRect(x,y,TS,TS)
-      },
-      [TL.CP]: (x,y) => {
-        r(x,y,TS,TS,C.cp); r(x+3,y+3,TS-6,TS-6,C.cpL)
-        // 카펫 픽셀 패턴
-        for(let i=0;i<4;i++) for(let j=0;j<4;j++) {
-          r(x+5+i*6,y+5+j*6,2,2,'rgba(255,255,255,0.15)')
-        }
-      },
-      [TL.W]: (x,y) => {
-        r(x,y,TS,TS,C.wl); r(x,y,TS,4,C.wlT); r(x,y+TS-3,TS,3,'rgba(0,0,0,0.25)')
-        ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=0.5; ctx.strokeRect(x,y,TS,TS)
-      },
-      [TL.WT]: (x,y) => { r(x,y,TS,TS,C.wlD) },
-      [TL.SH]: (x,y,tc) => {
-        r(x,y,TS,TS,C.wl)
-        r(x,y+4,TS,TS-4,'#8a6030'); r(x,y+4,TS,3,'#aa7840'); r(x,y+TS-4,TS,4,'#4a2808')
-        let bx=x+2; for(let b=0;b<4;b++){
-          r(bx,y+6,6,11,C.bk[(tc+b)%C.bk.length])
-          r(bx,y+6,1,11,'rgba(255,255,255,0.3)'); bx+=8
-        }
-      },
-      [TL.SK]: (x,y) => {
-        r(x,y,TS,TS,C.wl); r(x+6,y+5,TS-12,TS-10,'#1e1808')
-        ctx.fillStyle='#f0ecda'; ctx.beginPath(); ctx.arc(x+TS/2,y+TS/2,11,0,Math.PI*2); ctx.fill()
-        ctx.strokeStyle='#a09070'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x+TS/2,y+TS/2,11,0,Math.PI*2); ctx.stroke()
-        const t=tick.current
-        ctx.strokeStyle='#181008'; ctx.lineWidth=1.5; ctx.lineCap='round'
-        ctx.beginPath(); ctx.moveTo(x+TS/2,y+TS/2); ctx.lineTo(x+TS/2+Math.cos(t*0.012-Math.PI/2)*7,y+TS/2+Math.sin(t*0.012-Math.PI/2)*7); ctx.stroke()
-        ctx.strokeStyle='#c02828'; ctx.lineWidth=1
-        ctx.beginPath(); ctx.moveTo(x+TS/2,y+TS/2); ctx.lineTo(x+TS/2+Math.cos(t*0.7-Math.PI/2)*9,y+TS/2+Math.sin(t*0.7-Math.PI/2)*9); ctx.stroke()
-      },
-      [TL.DK]: (x,y) => {
-        r(x,y,TS,TS,C.dk); r(x,y,TS,2,C.dkL); r(x,y,2,TS,C.dkL)
-        r(x+TS-2,y,2,TS,C.dkD); r(x,y+TS-3,TS,3,C.dkF)
-        // 책상 위 물건 픽셀
-        r(x+4,y+4,6,4,'#e8e0d0'); r(x+12,y+6,4,3,'#2060c0')
-      },
-      [TL.MN]: (x,y) => {
-        r(x,y,TS,TS,(Math.round(x/TS)+Math.round(y/TS))%2===0?C.fl:C.fl2)
-        const p=0.5+Math.sin(tick.current+x*0.05)*0.25
-        r(x+4,y+6,TS-8,TS-12,C.mn)
-        ctx.globalAlpha=p*0.9
-        r(x+6,y+8,10,2,C.mnG); r(x+6,y+12,TS-14,2,'#70b0d8')
-        ctx.globalAlpha=1
-      },
-      [TL.CH]: (x,y,tc,tr) => {
-        r(x,y,TS,TS,(tc+tr)%2===0?C.fl:C.fl2)
-        const cc=C.ch[(tc/5|0+tr)%C.ch.length]
-        r(x+3,y+2,TS-6,4,cc); r(x+3,y+6,TS-6,14,cc)
-        r(x+4,y+20,5,8,'#504040'); r(x+TS-9,y+20,5,8,'#504040')
-      },
-      [TL.PL]: (x,y,tc,tr) => {
-        r(x,y,TS,TS,(tc+tr)%2===0?C.fl:C.fl2)
-        r(x+8,y+18,16,12,C.pot); r(x+8,y+18,16,3,C.potL)
-        r(x+TS/2-1,y+8,2,12,'#286018')
-        r(x+2,y+2,12,10,C.pl2); r(x+14,y-1,12,12,C.pl2); r(x+4,y+4,8,6,C.pl1)
-      },
-      [TL.DV]: (x,y) => {
-        r(x,y,TS,TS,C.wlD); r(x+TS/2-2,y,4,TS,'#8a6030')
-      },
-      [TL.WB]: (x,y) => {
-        r(x,y,TS,TS,C.wl); r(x+1,y+3,TS-2,TS-6,C.wbB); r(x+2,y+4,TS-4,TS-8,C.wb)
-        const bars=[9,15,7,12,18,6]; bars.forEach((bh,i)=>{ r(x+3+i*4,y+4+TS-12-bh,3,bh,C.bk[(x/TS|0+i)%C.bk.length]) })
-      },
-      [TL.MT]: (x,y) => {
-        r(x,y,TS,TS,C.mt); r(x,y,TS,2,C.mtL); r(x,y,2,TS,C.mtL)
-        r(x+TS-2,y,2,TS,C.mtD)
-      },
-      [TL.ME]: (x,y,tc,tr) => {
-        r(x,y,TS,TS,C.mtL); r(x+4,y+4,TS-8,TS-8,C.ch[(tc+tr)%C.ch.length])
-      },
-      [TL.SF]: (x,y) => {
-        r(x,y,TS,TS,C.so); r(x+2,y+2,TS-4,TS/2-2,C.soL)
-      },
-      [TL.SA]: (x,y) => {
-        r(x,y,TS,TS,C.soA); r(x+2,y+2,TS-4,TS-4,C.soD)
-      },
-      [TL.FR]: (x,y,tc) => {
-        r(x,y,TS,TS,(tc%2===0?C.fl:C.fl2))
-        r(x+4,y+4,TS-8,TS-8,C.fr[tc%3])
-        ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=1.5; ctx.strokeRect(x+4,y+4,TS-8,TS-8)
-      },
-    }
-
-    // ── 픽셀 캐릭터 그리기 ─────────────────
+    // ──────────────────────────────────────────
+    //  픽셀 캐릭터 그리기 (9×18 그리드, 3px/셀)
+    // ──────────────────────────────────────────
     const drawChar = (
-      px: number, py: number,
-      def: AgDef | null,
+      ox: number, oy: number,
+      def: AgDef,
       dir: 'u'|'d'|'l'|'r',
       frame: number,
-      sitting: boolean,
-      isPlayer: boolean
+      isActive: boolean,
+      isPlayer = false
     ) => {
-      // 방향/프레임에 따른 스프라이트 선택
-      const walkPhase = Math.floor(frame * 2) % 2
-      let grid: string[]
-      if (dir === 'u') grid = SPRITE_U
-      else if (dir === 'l') grid = SPRITE_L
-      else if (dir === 'r') grid = SPRITE_R
-      else {
-        // 걷는 중이면 다리 흔들기
-        if (!sitting && frame > 0) {
-          grid = walkPhase === 0 ? WALK_FRAME1_D : WALK_FRAME2_D
-        } else {
-          grid = SPRITE_D
-        }
+      const hair  = isPlayer ? '#2a1a5a' : def.hair
+      const skin  = isPlayer ? '#f4c890' : def.skin
+      const shirt = isPlayer ? '#c03030' : def.shirt
+      const pants = isPlayer ? '#303060' : def.pants
+      const shoes = isPlayer ? '#181818' : def.shoes
+      const skinD = shadeColor(skin, -30)
+      const shirtD= shadeColor(shirt, -30)
+
+      // 걷기 진동
+      const legA = Math.sin(frame * 1.5) * 1  // 다리 흔들기 픽셀 오프셋
+      const t = tick.current
+
+      // 그리드 픽셀 그리기 헬퍼
+      const g = (col:number, row:number, color:string, extraX=0, extraY=0) => {
+        px(ox + col*CP + extraX, oy + row*CP + extraY, CP, CP, color)
       }
 
-      // 앉은 자세 - 아래쪽 다리 압축
-      const renderY = sitting ? py + 4 : py
-
-      // 그림자
-      ctx.fillStyle = 'rgba(0,0,0,0.2)'
+      // ── 그림자 ──
+      ctx.fillStyle = 'rgba(0,0,0,0.18)'
       ctx.beginPath()
-      ctx.ellipse(px + SPW/2, renderY + SPH + 2, sitting ? 10 : 8, 3, 0, 0, Math.PI*2)
+      ctx.ellipse(ox+CHAR_W/2, oy+CHAR_H+2, 10, 3, 0, 0, Math.PI*2)
       ctx.fill()
 
-      // 픽셀 스프라이트 렌더
-      drawPixelSprite(px, renderY, grid, def, isPlayer)
+      if (dir === 'u') {
+        // 뒷모습 ──────────────────────────────
+        // 머리카락 (전체)
+        for(let c=1;c<8;c++) g(c,0,hair)
+        for(let c=0;c<9;c++) g(c,1,hair)
+        for(let c=0;c<9;c++) g(c,2,hair)
+        for(let c=0;c<9;c++) g(c,3,hair)
+        for(let c=0;c<9;c++) g(c,4,hair)
+        for(let c=0;c<9;c++) g(c,5,hair)
+        // 목
+        g(3,6,skin); g(4,6,skin); g(5,6,skin)
+        // 몸통
+        for(let r=7;r<13;r++) for(let c=1;c<8;c++) g(c,r, r%2===0 ? shirt : shirtD)
+        // 팔
+        g(0,8,shirt); g(0,9,shirt); g(0,10,shirt); g(0,11,shirt)
+        g(8,8,shirt); g(8,9,shirt); g(8,10,shirt); g(8,11,shirt)
+        // 손
+        g(0,12,skin); g(8,12,skin)
+        // 다리
+        const lo = Math.round(legA)
+        g(2,13,pants,0, lo); g(3,13,pants,0, lo)
+        g(5,13,pants,0,-lo); g(6,13,pants,0,-lo)
+        g(2,14,pants,0, lo); g(3,14,pants,0, lo)
+        g(5,14,pants,0,-lo); g(6,14,pants,0,-lo)
+        g(2,15,pants,0, lo); g(3,15,pants,0, lo)
+        g(5,15,pants,0,-lo); g(6,15,pants,0,-lo)
+        // 신발
+        g(1,16,shoes,0, lo); g(2,16,shoes,0, lo); g(3,16,shoes,0, lo)
+        g(5,16,shoes,0,-lo); g(6,16,shoes,0,-lo); g(7,16,shoes,0,-lo)
 
-      // 활성 에이전트 빛나는 픽셀 테두리
-      if (def && actRef.current === def.id) {
-        const glow = Math.sin(tick.current * 4) * 0.5 + 0.5
+      } else if (dir === 'd') {
+        // 앞모습 ──────────────────────────────
+        // 머리카락 상단
+        for(let c=1;c<8;c++) g(c,0,hair)
+        // 머리
+        for(let c=0;c<9;c++) g(c,1,hair)
+        // 얼굴 (row 2-6)
+        g(0,2,hair); for(let c=1;c<8;c++) g(c,2,skin); g(8,2,hair)
+        g(0,3,hair); for(let c=1;c<8;c++) g(c,3,skin); g(8,3,hair)
+        // 눈 (row 3)
+        g(2,3,'#fff'); g(3,3,'#fff')  // 왼쪽 흰자
+        g(6,3,'#fff'); g(7,3,'#fff')  // 오른쪽 흰자
+        g(2,3,'#1a0a2e'); g(3,3,'#1a0a2e')
+        g(6,3,'#1a0a2e'); g(7,3,'#1a0a2e')
+        // 눈동자 (작은 밝은 점)
+        px(ox+2*CP+1, oy+3*CP+1, 2, 2, '#fff')
+        px(ox+6*CP+1, oy+3*CP+1, 2, 2, '#fff')
+        px(ox+2*CP, oy+3*CP, CP, CP, '#3a1a6e')  // 눈 색
+        px(ox+6*CP, oy+3*CP, CP, CP, '#3a1a6e')
+        // 코 (row 4)
+        g(0,4,hair); for(let c=1;c<8;c++) g(c,4,skin); g(8,4,hair)
+        px(ox+4*CP, oy+4*CP+1, CP, 2, skinD)  // 코 그림자
+        // 입 (row 5)
+        g(0,5,hair); for(let c=1;c<8;c++) g(c,5,skin); g(8,5,hair)
+        // 입 모양
+        const smileColor = isActive ? '#e05070' : '#c04060'
+        px(ox+2*CP+1, oy+5*CP+1, CP+2, 2, smileColor)   // 입술
+        px(ox+5*CP-1, oy+5*CP+1, CP+2, 2, smileColor)
+        px(ox+3*CP+1, oy+5*CP+2, CP*2, 2, '#e08090')     // 이빨/입안
+        // 턱
+        g(0,6,hair); for(let c=1;c<8;c++) g(c,6,skin); g(8,6,hair)
+        // 목
+        g(3,7,skin); g(4,7,skin); g(5,7,skin)
+        // 모자/악세서리
+        drawHatPixel(ctx,ox,oy,def.hatStyle, def.accent, hair, dir)
+        // 몸통
+        for(let r=8;r<13;r++) for(let c=1;c<8;c++) g(c,r,shirt)
+        for(let r=8;r<13;r++) g(8,r,shirtD)  // 오른쪽 음영
+        // 팔
+        g(0,9,shirt); g(0,10,shirt); g(0,11,shirt)
+        g(8,9,shirtD); g(8,10,shirtD); g(8,11,shirtD)
+        // 손
+        g(0,12,skin); g(8,12,skin)
+        // 다리
+        const lo = Math.round(legA)
+        g(2,13,pants,0, lo); g(3,13,pants,0, lo)
+        g(5,13,pants,0,-lo); g(6,13,pants,0,-lo)
+        g(2,14,pants,0, lo); g(3,14,pants,0, lo)
+        g(5,14,pants,0,-lo); g(6,14,pants,0,-lo)
+        g(2,15,pants,0, lo); g(3,15,pants,0, lo)
+        g(5,15,pants,0,-lo); g(6,15,pants,0,-lo)
+        // 신발
+        g(1,16,shoes,0, lo); g(2,16,shoes,0, lo); g(3,16,shoes,0, lo)
+        g(5,16,shoes,0,-lo); g(6,16,shoes,0,-lo); g(7,16,shoes,0,-lo)
+
+      } else {
+        // 옆모습 (l/r) ────────────────────────
+        const flip = dir === 'l' ? 1 : -1
+        const fx = (c:number) => dir==='r' ? 8-c : c
+
+        // 머리
+        for(let c=1;c<8;c++) g(fx(c),0,hair)
+        for(let c=1;c<8;c++) g(fx(c),1,hair)
+        // 얼굴
+        for(let r=2;r<7;r++) {
+          g(fx(0),r,hair)
+          for(let c=1;c<7;c++) g(fx(c),r,skin)
+          g(fx(7),r,hair)
+          g(fx(8),r,hair)
+        }
+        // 눈 (한쪽만)
+        const eyeX = dir==='l' ? 2 : 6
+        g(eyeX,3,'#fff'); g(eyeX,3,'#1a0a2e')
+        px(ox+eyeX*CP+1, oy+3*CP+1, 2, 2, '#fff')
+        // 코
+        px(ox+(dir==='l'?1:7)*CP, oy+4*CP, CP, CP, skinD)
+        // 입
+        px(ox+(dir==='l'?2:5)*CP, oy+5*CP+1, CP, 2, '#c04060')
+        // 목
+        g(dir==='l'?3:5,7,skin)
+        // 뒷머리
+        for(let r=1;r<7;r++) g(dir==='l'?8:0,r,hair)
+        // 모자
+        drawHatPixel(ctx,ox,oy,def.hatStyle,def.accent,hair,dir)
+        // 몸통
+        for(let r=8;r<13;r++) for(let c=1;c<8;c++) g(c,r,shirt)
+        // 한쪽 팔만
+        const armC = dir==='l' ? 8 : 0
+        g(armC,9,shirt); g(armC,10,shirt); g(armC,11,shirt); g(armC,12,skin)
+        // 다리
+        const lo = Math.round(legA*flip)
+        g(3,13,pants,0, lo); g(4,13,pants,0,-lo)
+        g(3,14,pants,0, lo); g(4,14,pants,0,-lo)
+        g(3,15,pants,0, lo); g(4,15,pants,0,-lo)
+        g(2,16,shoes,0, lo); g(3,16,shoes,0, lo)
+        g(4,16,shoes,0,-lo); g(5,16,shoes,0,-lo)
+      }
+
+      // 활성 에이전트 글로우
+      if (isActive) {
+        const glow = Math.sin(t*5)*0.4+0.6
         ctx.strokeStyle = def.accent
         ctx.lineWidth = 1.5
         ctx.globalAlpha = glow
-        ctx.strokeRect(px - 1, renderY - 1, SPW + 2, SPH + 2)
+        ctx.strokeRect(ox-1, oy-1, CHAR_W+2, CHAR_H+2)
         ctx.globalAlpha = 1
       }
     }
 
-    // ── 이름표 (픽셀 스타일) ────────────────
-    const drawLabel = (px:number,py:number,name:string,active:boolean,accent:string) => {
+    // 모자/악세서리 그리기
+    const drawHatPixel = (
+      ctx: CanvasRenderingContext2D,
+      ox:number, oy:number,
+      style:string, accent:string, hair:string,
+      dir:'u'|'d'|'l'|'r'
+    ) => {
+      const g = (col:number,row:number,color:string) =>
+        px(ox+col*CP, oy+row*CP, CP, CP, color)
+      if(style==='suit') {
+        // 정장 넥타이
+        g(4,8,accent); g(4,9,accent); g(4,10,accent)
+        g(3,11,accent); g(4,11,accent); g(5,11,accent)
+      } else if(style==='bow') {
+        // 머리 리본
+        if(dir==='d'||dir==='u') {
+          g(2,-1,accent); g(3,-1,accent); g(4,-1,accent)
+          g(5,-1,accent); g(6,-1,accent)
+          g(3,-2,accent); g(4,0,accent); g(5,-2,accent)
+        }
+      } else if(style==='glass') {
+        // 안경
+        if(dir==='d') {
+          ctx.strokeStyle='#303050'; ctx.lineWidth=1
+          ctx.strokeRect(ox+CP*1+1, oy+CP*3+1, CP*2+1, CP*2+1)
+          ctx.strokeRect(ox+CP*5, oy+CP*3+1, CP*2+1, CP*2+1)
+          px(ox+CP*4, oy+CP*4, CP, 1, '#303050')
+        }
+      } else if(style==='cap') {
+        // 야구 모자
+        if(dir==='d'||dir==='u') {
+          for(let c=1;c<8;c++) g(c,-1,accent)
+          g(0,0,accent); g(8,0,accent)
+          for(let c=0;c<10;c++) px(ox+c*CP-CP, oy, CP, 2, shadeColor(accent,-20))
+        }
+      } else if(style==='beret') {
+        // 베레모
+        if(dir==='d'||dir==='u') {
+          for(let c=0;c<9;c++) g(c,-1,accent)
+          for(let c=1;c<8;c++) g(c,-2,accent)
+          g(6,-3,shadeColor(accent,-20))
+        }
+      }
+    }
+
+    // ── 이름표 ──
+    const drawLabel = (ox:number,oy:number,name:string,active:boolean,accent:string) => {
       ctx.font = 'bold 9px "Jua",monospace'
       const tw = ctx.measureText(name).width + 8
-      const lx = px + SPW/2 - tw/2, ly = py - 13
-      // 픽셀 느낌 - 1px 오프셋 그림자
-      r(lx+1, ly+1, tw, 12, 'rgba(0,0,0,0.8)')
-      ctx.fillStyle = active ? accent : 'rgba(20,10,50,0.9)'
-      ctx.fillRect(Math.round(lx), Math.round(ly), Math.round(tw), 12)
-      ctx.strokeStyle = active ? '#fff' : 'rgba(160,140,220,0.5)'
+      const lx = ox+CHAR_W/2-tw/2, ly = oy-14
+      // 픽셀 스타일 그림자
+      px(lx+1,ly+1,tw,12,'rgba(0,0,0,0.8)')
+      ctx.fillStyle = active ? accent : 'rgba(20,10,50,0.92)'
+      ctx.fillRect(Math.round(lx),Math.round(ly),Math.round(tw),12)
+      ctx.strokeStyle = active ? '#fff' : 'rgba(180,160,240,0.5)'
       ctx.lineWidth = 1
-      ctx.strokeRect(Math.round(lx), Math.round(ly), Math.round(tw), 12)
-      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'
-      ctx.fillText(name, px + SPW/2, ly + 9); ctx.textAlign = 'left'
+      ctx.strokeRect(Math.round(lx),Math.round(ly),Math.round(tw),12)
+      ctx.fillStyle='#fff'; ctx.textAlign='center'
+      ctx.fillText(name,ox+CHAR_W/2,ly+9); ctx.textAlign='left'
     }
 
-    // ── 말풍선 (픽셀 스타일) ────────────────
-    const BUBBLES: Record<string,string> = {
-      router:'배분중!', web:'코딩중!', content:'작성중!', research:'분석중!', edu:'강의중!', ops:'배포중!'
-    }
-    const drawBubble = (px:number,py:number,text:string,accent:string) => {
-      const bob = Math.sin(tick.current * 3) * 1.5
+    // ── 말풍선 ──
+    const drawBubble = (ox:number,oy:number,text:string,accent:string,isMeet=false) => {
+      const bob = Math.sin(tick.current*3)*1.5
       ctx.font = '8px "Jua",monospace'
       const tw = ctx.measureText(text).width + 8
-      const bx = px + SPW/2 - tw/2, by = py - 26 + bob
-      r(bx+1, by+1, tw, 14, 'rgba(0,0,0,0.6)')
-      ctx.fillStyle = '#fff'; ctx.fillRect(Math.round(bx), Math.round(by), Math.round(tw), 14)
+      const bx = ox+CHAR_W/2-tw/2, by = oy-32+bob
+      // 그림자
+      px(bx+1,by+1,tw,14,'rgba(0,0,0,0.5)')
+      ctx.fillStyle = isMeet ? '#fffbe8' : '#fff'
+      ctx.fillRect(Math.round(bx),Math.round(by),Math.round(tw),14)
       ctx.strokeStyle = accent; ctx.lineWidth = 1.5
-      ctx.strokeRect(Math.round(bx), Math.round(by), Math.round(tw), 14)
-      // 꼬리
-      r(px+SPW/2-2, by+14, 4, 3, '#fff')
-      r(px+SPW/2-1, by+17, 2, 2, '#fff')
-      ctx.fillStyle = '#100828'; ctx.font = 'bold 8px "Jua",monospace'
-      ctx.textAlign = 'center'; ctx.fillText(text, px+SPW/2, by+10); ctx.textAlign = 'left'
+      ctx.strokeRect(Math.round(bx),Math.round(by),Math.round(tw),14)
+      // 꼬리 (픽셀)
+      px(ox+CHAR_W/2-2,by+14,5,3,'#fff')
+      px(ox+CHAR_W/2-1,by+17,3,2,'#fff')
+      ctx.fillStyle = isMeet ? '#705000' : '#100828'
+      ctx.font = 'bold 8px "Jua",monospace'
+      ctx.textAlign='center'; ctx.fillText(text,ox+CHAR_W/2,by+10); ctx.textAlign='left'
     }
 
-    // ── HUD ─────────────────────────────────
-    const drawHUD = (isDecorate:boolean, nearAgName:string|null) => {
-      const modeText = isDecorate ? '🎨 꾸미기 (F전환)' : '🕹️ 이동 (F전환)'
-      ctx.fillStyle = isDecorate ? 'rgba(255,160,0,0.9)' : 'rgba(20,10,50,0.85)'
-      ctx.strokeStyle = isDecorate ? '#ffb020' : 'rgba(160,140,220,0.6)'
-      ctx.lineWidth = 1
-      ctx.fillRect(8, CANVAS_H-28, 160, 20)
-      ctx.strokeRect(8, CANVAS_H-28, 160, 20)
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px "Jua",monospace'
-      ctx.fillText(modeText, 14, CANVAS_H-13)
-
-      if (!isDecorate) {
-        ctx.fillStyle = 'rgba(20,10,50,0.7)'
-        ctx.fillRect(CANVAS_W-115, CANVAS_H-28, 107, 20)
-        ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '9px monospace'
-        ctx.fillText('WASD/방향키 이동', CANVAS_W-110, CANVAS_H-13)
+    // ═══════════════════════════════════════
+    //  타일 렌더러 (실사 느낌)
+    // ═══════════════════════════════════════
+    const drawTile = (tile:number, x:number, y:number, tc:number, tr:number) => {
+      const t2 = tick.current
+      switch(tile) {
+        case T.F: {
+          // 바닥 - 나무 패턴
+          const c1='#c8c0a8', c2='#b8b098'
+          px(x,y,TS,TS,(tc+tr)%2===0?c1:c2)
+          // 나무 결 선
+          ctx.strokeStyle='rgba(0,0,0,0.04)'; ctx.lineWidth=0.5
+          for(let i=0;i<4;i++) {
+            ctx.beginPath(); ctx.moveTo(x,y+i*8); ctx.lineTo(x+TS,y+i*8+4); ctx.stroke()
+          }
+          break
+        }
+        case T.CP: {
+          // 카펫 - 패턴 있는
+          px(x,y,TS,TS,'#3a3080')
+          px(x+2,y+2,TS-4,TS-4,'#484898')
+          for(let i=0;i<3;i++) for(let j=0;j<3;j++)
+            px(x+4+i*8,y+4+j*8,4,4,'rgba(120,100,200,0.4)')
+          ctx.strokeStyle='rgba(200,180,255,0.15)'; ctx.lineWidth=1
+          ctx.strokeRect(x+4,y+4,TS-8,TS-8)
+          break
+        }
+        case T.W: {
+          // 벽 - 벽돌 질감
+          px(x,y,TS,TS,'#9a8c76')
+          px(x,y,TS,3,'#c0a870')   // 몰딩
+          px(x,y+TS-2,TS,2,'rgba(0,0,0,0.2)')
+          // 벽돌 선
+          ctx.strokeStyle='rgba(0,0,0,0.07)'; ctx.lineWidth=0.5
+          ctx.strokeRect(x,y,TS,TS)
+          if(tc%2===0) px(x,y+TS/2,TS,1,'rgba(0,0,0,0.08)')
+          break
+        }
+        case T.WT: px(x,y,TS,TS,'#6a5c48'); break
+        case T.SH: {
+          // 책장 - 나무 + 책들
+          px(x,y,TS,TS,'#7a5020')
+          px(x,y,TS,2,'#aa6830')
+          px(x,y+TS-3,TS,3,'#4a2808')
+          px(x+1,y+3,TS-2,TS-6,'#6a4010')
+          // 책 (픽셀로)
+          const bookColors=['#e04040','#3880e8','#38a038','#e89828','#9828e8','#28a8c0']
+          let bx=x+2
+          for(let b=0;b<4;b++){
+            const bh=8+((tc*3+b*7)%6), bc=bookColors[(tc+tr+b)%bookColors.length]
+            px(bx,y+4,5,bh,bc)
+            px(bx,y+4,1,bh,'rgba(255,255,255,0.2)')
+            px(bx+4,y+4,1,bh,'rgba(0,0,0,0.2)')
+            bx+=7
+          }
+          break
+        }
+        case T.SK: {
+          // 시계 - 아날로그
+          px(x,y,TS,TS,'#9a8c76')
+          ctx.fillStyle='#f5f0e0'
+          ctx.beginPath(); ctx.arc(x+TS/2,y+TS/2,12,0,Math.PI*2); ctx.fill()
+          ctx.strokeStyle='#8a7060'; ctx.lineWidth=1.5
+          ctx.beginPath(); ctx.arc(x+TS/2,y+TS/2,12,0,Math.PI*2); ctx.stroke()
+          // 시침
+          ctx.strokeStyle='#1a1010'; ctx.lineWidth=2; ctx.lineCap='round'
+          const ha=t2*0.008-Math.PI/2
+          ctx.beginPath(); ctx.moveTo(x+TS/2,y+TS/2)
+          ctx.lineTo(x+TS/2+Math.cos(ha)*7,y+TS/2+Math.sin(ha)*7); ctx.stroke()
+          // 분침
+          ctx.strokeStyle='#c02020'; ctx.lineWidth=1
+          const ma=t2*0.5-Math.PI/2
+          ctx.beginPath(); ctx.moveTo(x+TS/2,y+TS/2)
+          ctx.lineTo(x+TS/2+Math.cos(ma)*10,y+TS/2+Math.sin(ma)*10); ctx.stroke()
+          // 중심 점
+          ctx.fillStyle='#c02020'
+          ctx.beginPath(); ctx.arc(x+TS/2,y+TS/2,1.5,0,Math.PI*2); ctx.fill()
+          break
+        }
+        case T.DK: {
+          // 책상 - 나무 질감 실사
+          px(x,y,TS,TS,'#c49040')
+          // 상판 하이라이트
+          px(x,y,TS,2,'#e0a848')
+          px(x,y,2,TS,'#d8984c')
+          px(x+TS-2,y,2,TS,'#9a7028')
+          px(x,y+TS-3,TS,3,'#785018')
+          // 나무 결
+          ctx.strokeStyle='rgba(120,80,0,0.1)'; ctx.lineWidth=0.5
+          for(let i=2;i<TS;i+=6) {
+            ctx.beginPath(); ctx.moveTo(x+i,y); ctx.lineTo(x+i+2,y+TS); ctx.stroke()
+          }
+          // 책상 위 물건 (픽셀 느낌)
+          px(x+3,y+3,8,5,'#e8e0d0')   // 서류
+          px(x+3,y+3,8,1,'#d0c8b8')
+          px(x+14,y+4,6,4,'#2a6abf')  // 파일
+          break
+        }
+        case T.MN: {
+          // 모니터 - 실사 느낌
+          px(x,y,TS,TS,(tc+tr)%2===0?'#c8c0a8':'#b8b098')
+          // 모니터 프레임
+          px(x+3,y+4,TS-6,TS-10,'#1a1828')
+          px(x+4,y+5,TS-8,TS-13,'#0e1020')
+          // 화면 (스크롤되는 코드 느낌)
+          const scroll = Math.floor(t2*0.5)%12
+          const lineColors=['#30c878','#70b0d8','#30c878','#c87030']
+          for(let ln=0;ln<4;ln++) {
+            const lw = 4+((tc*7+ln*5+scroll)%8)
+            px(x+5,y+7+ln*3,lw,1,lineColors[(ln+Math.floor(t2*0.3))%4])
+          }
+          // 스크린 글로우
+          ctx.globalAlpha=0.08+Math.sin(t2*0.5)*0.04
+          ctx.fillStyle='#30c878'
+          ctx.fillRect(x+4,y+5,TS-8,TS-13)
+          ctx.globalAlpha=1
+          // 스탠드
+          px(x+TS/2-2,y+TS-6,4,3,'#1a1828')
+          px(x+TS/2-5,y+TS-3,10,2,'#141420')
+          break
+        }
+        case T.CH: {
+          // 의자 - 실사
+          px(x,y,TS,TS,(tc+tr)%2===0?'#c8c0a8':'#b8b098')
+          const cc=['#5a5080','#405878','#784040','#487840','#586040'][(tc/4|0+tr)%5]
+          const ccD=shadeColor(cc,-30)
+          // 등받이
+          px(x+3,y+1,TS-6,4,cc); px(x+3,y+5,TS-6,12,cc)
+          // 쿠션 하이라이트
+          px(x+4,y+2,TS-10,3,shadeColor(cc,20))
+          // 측면 음영
+          px(x+TS-5,y+1,2,16,ccD)
+          // 다리
+          px(x+4,y+TS-10,4,10,'#604020')
+          px(x+TS-8,y+TS-10,4,10,'#604020')
+          // 발판
+          px(x+2,y+TS-3,TS-4,2,'#503010')
+          break
+        }
+        case T.PL: {
+          // 화분 - 실사
+          px(x,y,TS,TS,(tc+tr)%2===0?'#c8c0a8':'#b8b098')
+          // 그림자
+          ctx.fillStyle='rgba(0,0,0,0.1)'
+          ctx.beginPath(); ctx.ellipse(x+TS/2,y+TS-1,10,3,0,0,Math.PI*2); ctx.fill()
+          // 화분
+          px(x+7,y+18,18,12,'#b85028')
+          px(x+7,y+18,18,3,'#d87040')
+          px(x+8,y+27,16,3,'#8a3818')
+          // 줄기
+          px(x+TS/2-1,y+8,3,12,'#286018')
+          // 잎 (여러 방향)
+          px(x+2,y+3,12,9,'#288020')
+          px(x+2,y+3,10,7,'#38a030')
+          px(x+14,y+1,12,10,'#288020')
+          px(x+15,y+1,10,8,'#38a030')
+          px(x+6,y-2,10,12,'#208018')
+          px(x+7,y-2,8,10,'#30a028')
+          break
+        }
+        case T.DV: {
+          // 칸막이
+          px(x,y,TS,TS,'#6a5c48')
+          px(x+TS/2-3,y,6,TS,'#8a6030')
+          px(x+TS/2-2,y,4,TS,'#aa7840')
+          break
+        }
+        case T.WB: {
+          // 화이트보드 - 실사
+          px(x,y,TS,TS,'#9a8c76')
+          px(x+1,y+2,TS-2,TS-4,'#606860')
+          px(x+2,y+3,TS-4,TS-7,'#f5f5f0')
+          // 마커로 쓴 내용 (픽셀)
+          const textColors=['#e04040','#3060c0','#208040']
+          for(let ln=0;ln<3;ln++) {
+            const lw=4+((tc+ln*5)%8)
+            px(x+4,y+5+ln*5,lw,1,textColors[ln])
+          }
+          // 보드 테두리
+          ctx.strokeStyle='#484840'; ctx.lineWidth=1
+          ctx.strokeRect(x+2,y+3,TS-4,TS-7)
+          break
+        }
+        case T.MT: case T.MT2: {
+          // 회의 테이블 - 실사 고급
+          px(x,y,TS,TS,'#8a5a20')
+          px(x,y,TS,2,'#b07830')
+          px(x,y,2,TS,'#b07830')
+          px(x+TS-2,y,2,TS,'#5a3808')
+          px(x,y+TS-2,TS,2,'#5a3808')
+          // 나무 결
+          ctx.strokeStyle='rgba(60,30,0,0.12)'; ctx.lineWidth=0.8
+          for(let i=4;i<TS;i+=8) {
+            ctx.beginPath(); ctx.moveTo(x+i,y+1); ctx.lineTo(x+i+1,y+TS-1); ctx.stroke()
+          }
+          // 테이블 위 컵/노트
+          if((tc+tr)%3===0) {
+            px(x+8,y+6,8,8,'#e0e8f0'); px(x+9,y+7,6,6,'#f0f8ff')
+            px(x+8,y+14,8,2,'#c0c8d0')
+          }
+          break
+        }
+        case T.ME: {
+          // 회의실 벽
+          px(x,y,TS,TS,'#b0a090')
+          px(x+4,y+4,TS-8,TS-8,['#7060a0','#5070a0','#906050','#708848'][(tc+tr)%4])
+          break
+        }
+        case T.SF: {
+          // 소파 - 실사
+          px(x,y,TS,TS,'#c8c0a8')
+          px(x,y,TS,TS,'#b82858')
+          px(x+1,y+1,TS-2,TS/2,'#d84070')
+          px(x+2,y+2,TS-4,TS/2-2,'#e05080')
+          px(x+TS-4,y,4,TS,'#901840')
+          // 쿠션 선
+          ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1
+          ctx.beginPath(); ctx.moveTo(x+TS/2,y+2); ctx.lineTo(x+TS/2,y+TS/2); ctx.stroke()
+          break
+        }
+        case T.SA: {
+          // 소파 팔걸이
+          px(x,y,TS,TS,'#501028')
+          px(x+2,y+2,TS-4,TS-4,'#782038')
+          break
+        }
+        case T.FR: {
+          // 액자/그림
+          px(x,y,TS,TS,(tc%2===0?'#c8c0a8':'#b8b098'))
+          const frameC=['#c07830','#8038a0','#3868b0'][(tc+tr)%3]
+          px(x+3,y+3,TS-6,TS-6,frameC)
+          px(x+5,y+5,TS-10,TS-10,'#e8e0d0')
+          // 그림 내용
+          if((tc+tr)%3===0) {
+            // 산 그림
+            ctx.fillStyle='#88b8d8'; ctx.fillRect(x+5,y+5,TS-10,TS-10)
+            ctx.fillStyle='#3870a0'; ctx.beginPath()
+            ctx.moveTo(x+10,y+TS-7); ctx.lineTo(x+TS/2,y+8); ctx.lineTo(x+TS-10,y+TS-7); ctx.fill()
+            ctx.fillStyle='#f0f0f8'; ctx.beginPath()
+            ctx.moveTo(x+TS/2,y+8); ctx.lineTo(x+TS/2-5,y+16); ctx.lineTo(x+TS/2+5,y+16); ctx.fill()
+          } else {
+            // 추상화
+            const colors=['#e84030','#3060d0','#30a030']
+            colors.forEach((c,i)=>px(x+6+i*5,y+6,4,TS-12,c))
+          }
+          // 액자 테두리
+          ctx.strokeStyle=shadeColor(frameC,-30); ctx.lineWidth=1.5
+          ctx.strokeRect(x+3,y+3,TS-6,TS-6)
+          break
+        }
+        default:
+          px(x,y,TS,TS,(tc+tr)%2===0?'#c8c0a8':'#b8b098')
       }
-
-      if (nearAgName && !isDecorate) {
-        ctx.fillStyle = 'rgba(255,255,255,0.95)'
-        ctx.fillRect(CANVAS_W/2-80, CANVAS_H-52, 160, 22)
-        ctx.strokeStyle = '#8860f0'; ctx.lineWidth = 1.5
-        ctx.strokeRect(CANVAS_W/2-80, CANVAS_H-52, 160, 22)
-        ctx.fillStyle = '#300850'; ctx.font = 'bold 10px "Jua",monospace'; ctx.textAlign = 'center'
-        ctx.fillText(`👋 ${nearAgName}에게 인사!`, CANVAS_W/2, CANVAS_H-36)
-        ctx.textAlign = 'left'
-      }
     }
 
-    let mouseX=0, mouseY=0
-    const onMove = (e: MouseEvent) => {
-      const rect = cv.getBoundingClientRect()
-      mouseX = (e.clientX-rect.left) * (CANVAS_W/rect.width)
-      mouseY = (e.clientY-rect.top)  * (CANVAS_H/rect.height)
+    // ─── 색상 유틸 ───────────────────────────
+    function shadeColor(hex:string, amount:number):string {
+      const n=parseInt(hex.replace('#',''),16)
+      const r=Math.max(0,Math.min(255,(n>>16)+amount))
+      const g=Math.max(0,Math.min(255,((n>>8)&0xff)+amount))
+      const b=Math.max(0,Math.min(255,(n&0xff)+amount))
+      return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
     }
-    cv.addEventListener('mousemove', onMove)
 
+    // ═══════════════════════════════════════
+    //  메인 루프
+    // ═══════════════════════════════════════
     let animId: number
     const loop = () => {
       tick.current += 0.04
       const s = setRef.current
-      const cts = loadData<CT[]>('nk_custom_teams', [])
-      const isDecorate = modeRef.current === 'decorate'
 
-      // ── 플레이어 이동 ──
-      if (!isDecorate) {
-        const pl = playerRef.current
-        const spd = 2; let dx=0, dy=0
-        const k = keysRef.current
-        if(k.has('arrowup')   ||k.has('w')) dy=-spd
-        if(k.has('arrowdown') ||k.has('s')) dy= spd
-        if(k.has('arrowleft') ||k.has('a')) dx=-spd
-        if(k.has('arrowright')||k.has('d')) dx= spd
-        pl.moving = dx!==0||dy!==0
-        if (pl.moving) {
-          const nx=pl.x+dx, ny=pl.y+dy
-          if(canWalk(nx,ny)){pl.x=nx;pl.y=ny}
-          else if(canWalk(pl.x+dx,pl.y)){pl.x+=dx}
-          else if(canWalk(pl.x,pl.y+dy)){pl.y+=dy}
-          pl.frame = (pl.frame + 0.2) % 4
-          if(Math.abs(dx)>Math.abs(dy)) pl.dir=dx>0?'r':'l'
-          else pl.dir=dy>0?'d':'u'
-        }
-        let nearest:string|null=null, nearDist=50
-        agRef.current.forEach(ag=>{
-          const d=Math.hypot(ag.x-pl.x, ag.y-pl.y)
-          if(d<nearDist){nearDist=d;nearest=ag.def.name}
+      // ── 회의 이벤트 ──
+      const mt = meetRef.current
+      mt.timer -= 1
+      if (mt.timer <= 0 && !mt.active) {
+        mt.active = true
+        mt.timer = 300 + Math.random()*200  // 회의 지속 시간
+        mt.count++
+        // 랜덤으로 2~4명 회의 참석
+        const participants = [...agRef.current]
+          .sort(()=>Math.random()-0.5)
+          .slice(0, 2+Math.floor(Math.random()*3))
+        participants.forEach((ag, i) => {
+          const ms = MEETING_SEATS[i % MEETING_SEATS.length]
+          ag.tx = 2 + ms.tc * TS + CHAR_W/2
+          ag.ty = 2 + (ms.tr+1) * TS + TS/2
+          ag.mode = 'meeting'
+          ag.bubble = MEET_BUBBLES[Math.floor(Math.random()*MEET_BUBBLES.length)]
+          ag.bubbleTimer = 60 + Math.random()*60
         })
-        setNearAgent(nearest)
+      } else if (mt.active && mt.timer <= 0) {
+        mt.active = false
+        mt.timer = 400 + Math.random()*400  // 다음 회의까지
+        agRef.current.forEach(ag => {
+          if (ag.mode === 'meeting' || ag.mode === 'meetReturn') {
+            ag.mode = 'meetReturn'
+            ag.tx = ag.sx; ag.ty = ag.sy
+          }
+        })
       }
 
-      // ── 배경 ──
-      ctx.fillStyle = '#0a0a16'; ctx.fillRect(0, 0, cv.width, cv.height)
-
-      // ── 타일 ──
-      for(let tr=0;tr<ROWS;tr++) for(let tc=0;tc<COLS;tc++){
-        const tile=mapRef.current[tr]?.[tc]; if(!tile) continue
-        const x=tpx(tc), y=tpy(tr)
-        const fn=TILE_RENDER[tile]
-        if(fn) fn(x,y,tc,tr)
-        else r(x,y,TS,TS,(tc+tr)%2===0?C.fl:C.fl2)
-      }
-
-      // 꾸미기 모드 하이라이트
-      if (isDecorate) {
-        const tc=Math.floor((mouseX-2)/TS), tr=Math.floor((mouseY-2)/TS)
-        if(tc>=0&&tc<COLS&&tr>=0&&tr<ROWS){
-          ctx.strokeStyle='#ffe030'; ctx.lineWidth=2
-          ctx.strokeRect(tpx(tc),tpy(tr),TS,TS)
-          ctx.fillStyle='rgba(255,224,48,0.15)'
-          ctx.fillRect(tpx(tc),tpy(tr),TS,TS)
+      // ── 에이전트 AI ──
+      agRef.current.forEach(ag => {
+        // 말풍선 타이머
+        ag.bubbleTimer -= 1
+        if (ag.bubbleTimer <= 0) {
+          const bubbles = ag.mode==='meeting' ? MEET_BUBBLES
+            : (WORK_BUBBLES[ag.def.id] || WORK_BUBBLES.ops)
+          ag.bubble = bubbles[Math.floor(Math.random()*bubbles.length)]
+          ag.bubbleTimer = 60 + Math.random()*80
         }
-      }
 
-      // ── 에이전트 AI 이동 ──
-      agRef.current.forEach(ag=>{
-        ag.timer-=0.04
-        if(ag.state==='sit'){
-          if(ag.timer<=0){
-            if(Math.random()<0.3){
-              const tgt=walkTarget()
-              ag.state='walk'; ag.tx=tgt.tx; ag.ty=tgt.ty
-              ag.walksLeft=1+Math.floor(Math.random()*2)
-              ag.timer=8+Math.random()*8
-            } else ag.timer=15+Math.random()*25
-          }
-        } else if(ag.state==='walk'){
-          const dx=ag.tx-ag.x, dy=ag.ty-ag.y, dist=Math.hypot(dx,dy)
-          if(dist>2){
-            const nx=ag.x+dx/dist*1.2, ny=ag.y+dy/dist*1.2
-            if(canWalk(nx,ny)){ag.x=nx;ag.y=ny} else {ag.state='return';ag.tx=ag.sx;ag.ty=ag.sy}
-            ag.frame=(ag.frame+0.2)%4
-            if(Math.abs(dx)>Math.abs(dy)) ag.dir=dx>0?'r':'l'
-            else ag.dir=dy>0?'d':'u'
-          } else {
-            ag.walksLeft--
-            if(ag.walksLeft<=0||ag.timer<=0){ag.state='return';ag.tx=ag.sx;ag.ty=ag.sy}
-            else {const tgt=walkTarget();ag.tx=tgt.tx;ag.ty=tgt.ty}
-          }
-        } else {
-          const dx=ag.tx-ag.x, dy=ag.ty-ag.y, dist=Math.hypot(dx,dy)
+        ag.timer -= 0.04
+        const moveTo = (tx:number, ty:number, speed=1.4) => {
+          const dx=tx-ag.x, dy=ty-ag.y, dist=Math.hypot(dx,dy)
           if(dist>3){
-            const nx=ag.x+dx/dist*1.3, ny=ag.y+dy/dist*1.3
+            const nx=ag.x+dx/dist*speed, ny=ag.y+dy/dist*speed
             if(canWalk(nx,ny)){ag.x=nx;ag.y=ny}
-            ag.frame=(ag.frame+0.2)%4
+            else if(canWalk(ag.x+dx/dist*speed,ag.y)){ag.x+=dx/dist*speed}
+            else if(canWalk(ag.x,ag.y+dy/dist*speed)){ag.y+=dy/dist*speed}
+            ag.frame=(ag.frame+0.15)%4
             if(Math.abs(dx)>Math.abs(dy)) ag.dir=dx>0?'r':'l'
             else ag.dir=dy>0?'d':'u'
-          } else {
-            ag.x=ag.sx;ag.y=ag.sy;ag.state='sit'
-            ag.dir='u';ag.frame=0;ag.timer=15+Math.random()*20
+            return false
           }
+          return true  // arrived
+        }
+
+        if (ag.mode === 'sit') {
+          if (ag.timer <= 0) {
+            if (Math.random() < 0.25 && !mt.active) {
+              // 자유 산책
+              const tgt = randTarget(true)
+              ag.tx=tgt.tx; ag.ty=tgt.ty; ag.mode='roam'
+              ag.walksLeft=1+Math.floor(Math.random()*2)
+              ag.timer=10+Math.random()*10
+            } else {
+              ag.timer=20+Math.random()*40
+            }
+          }
+        } else if (ag.mode === 'roam') {
+          if (moveTo(ag.tx, ag.ty)) {
+            ag.walksLeft--
+            if (ag.walksLeft<=0||ag.timer<=0) {
+              ag.mode='return'; ag.tx=ag.sx; ag.ty=ag.sy
+            } else {
+              const tgt=randTarget(true); ag.tx=tgt.tx; ag.ty=tgt.ty
+            }
+          }
+        } else if (ag.mode === 'return' || ag.mode === 'meetReturn') {
+          if (moveTo(ag.tx, ag.ty, 1.6)) {
+            ag.x=ag.sx; ag.y=ag.sy; ag.mode='sit'
+            ag.dir='u'; ag.frame=0; ag.timer=20+Math.random()*30
+          }
+        } else if (ag.mode === 'meeting') {
+          moveTo(ag.tx, ag.ty, 1.6)
         }
       })
 
-      // ── Y정렬 스프라이트 렌더 ──
-      const pl = playerRef.current
-      type Sprite = { y:number; draw:()=>void }
-      const sprites: Sprite[] = []
+      // ── 렌더링 ──
+      ctx.fillStyle='#0a0a16'; ctx.fillRect(0,0,CW,CH)
+
+      // 타일
+      for(let tr=0;tr<ROWS;tr++) for(let tc=0;tc<COLS;tc++){
+        const tile=mapRef.current[tr]?.[tc]
+        if(tile) drawTile(tile, 2+tc*TS, 2+tr*TS, tc, tr)
+      }
+
+      // 회의실 표시
+      if (mt.active) {
+        ctx.fillStyle='rgba(255,200,50,0.06)'
+        ctx.fillRect(2+18*TS, 2+TS, 9*TS, 7*TS)
+      }
+
+      // 스프라이트 Y정렬
+      type Sprite={y:number;draw:()=>void}
+      const sprites:Sprite[]=[]
 
       agRef.current.forEach(ag=>{
+        const isAct = actRef.current===ag.def.id
+        const nm = s.agentNames?.[ag.def.id]||ag.def.name
+        const ox=Math.round(ag.x-CHAR_W/2), oy=Math.round(ag.y-CHAR_H)
+        const inMeeting = ag.mode==='meeting'
         sprites.push({y:ag.y, draw:()=>{
-          const isAct = actRef.current===ag.def.id
-          const nm = s.agentNames?.[ag.def.id]||ag.def.name
-          const px=Math.round(ag.x-SPW/2), py=Math.round(ag.y-SPH)
-          drawChar(px, py, ag.def, ag.dir, ag.frame, ag.state==='sit', false)
-          drawLabel(px, py, nm, isAct, ag.def.accent)
-          if(isAct) drawBubble(px, py, BUBBLES[ag.def.id]||'업무중!', ag.def.accent)
+          drawChar(ox,oy,ag.def,ag.dir,ag.frame,isAct,false)
+          drawLabel(ox,oy,nm,isAct,ag.def.accent)
+          // 말풍선: 일하는 중이거나 회의 중일 때
+          if(isAct || inMeeting || ag.mode==='sit') {
+            const showBubble = isAct || inMeeting || (ag.mode==='sit' && Math.sin(tick.current*0.5+ag.def.id.length)*0.5+0.5>0.6)
+            if(showBubble) drawBubble(ox,oy,ag.bubble,ag.def.accent,inMeeting)
+          }
         }})
       })
-
-      cts.slice(0,6).forEach((ct,i)=>{
-        const col=i%3, row2=Math.floor(i/3)
-        const tc=2+col*4, tr2=13+row2*2
-        const ax=tpx(tc)+TS/2, ay=tpy(tr2)+TS
-        const palettes=[
-          {body:'#4040a0',bodyD:'#202060',skin:'#f4c080',hat:'#6060e8',leg:'#202060',shoe:'#080810',accent:'#8080ff'},
-          {body:'#902018',bodyD:'#601008',skin:'#fde3a7',hat:'#e74c3c',leg:'#400808',shoe:'#180808',accent:'#ff6060'},
-          {body:'#208848',bodyD:'#104828',skin:'#f0c896',hat:'#27ae60',leg:'#083018',shoe:'#081008',accent:'#50e870'},
-        ]
-        const pal = palettes[i%3]
-        const nm = s.agentNames?.[ct.id]||ct.name
-        const fakeDef = {...AGENT_DEF[0], ...pal, id:ct.id, name:ct.name, seat:{tc,tr:tr2}, accent:pal.accent}
-        const px=Math.round(ax-SPW/2), py=Math.round(ay-SPH)
-        sprites.push({y:ay, draw:()=>{
-          drawChar(px, py, fakeDef, 'u', 0, true, false)
-          drawLabel(px, py, nm, actRef.current===ct.id, pal.accent)
-        }})
-      })
-
-      if (!isDecorate) {
-        const playerDef = {...AGENT_DEF[0], body:'#c03030', bodyD:'#8a1a1a', skin:'#f4c890', hat:'#ffe030', leg:'#303060', shoe:'#181818', accent:'#ffe030'}
-        sprites.push({y:pl.y, draw:()=>{
-          const px=Math.round(pl.x-SPW/2), py=Math.round(pl.y-SPH)
-          drawChar(px, py, playerDef, pl.dir, pl.frame, false, true)
-          drawLabel(px, py, '나', false, '#ffe030')
-        }})
-      }
 
       sprites.sort((a,b)=>a.y-b.y).forEach(sp=>sp.draw())
-      drawHUD(isDecorate, nearAgent)
 
-      animId = requestAnimationFrame(loop)
+      // ── HUD 간소화 ──
+      // 회의중 표시
+      if (mt.active) {
+        ctx.fillStyle='rgba(255,200,0,0.9)'
+        ctx.fillRect(CW-130, 8, 122, 20)
+        ctx.strokeStyle='#e0a000'; ctx.lineWidth=1
+        ctx.strokeRect(CW-130, 8, 122, 20)
+        ctx.fillStyle='#300800'; ctx.font='bold 10px "Jua",monospace'; ctx.textAlign='center'
+        ctx.fillText('📊 팀 회의 진행중!', CW-69, 22)
+        ctx.textAlign='left'
+      }
+
+      // WASD 힌트 (작게)
+      ctx.fillStyle='rgba(20,10,50,0.6)'
+      ctx.fillRect(8, CH-24, 130, 16)
+      ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='8px monospace'
+      ctx.fillText('AI 오피스 · 자동 시뮬레이션', 12, CH-12)
+
+      animId=requestAnimationFrame(loop)
     }
-    animId = requestAnimationFrame(loop)
-    return () => { cancelAnimationFrame(animId); cv.removeEventListener('mousemove', onMove) }
-  }, [nearAgent])
+    animId=requestAnimationFrame(loop)
+    return()=>cancelAnimationFrame(animId)
+  }, [])
 
   return (
-    <div style={{ position:'relative', display:'inline-block' }}>
-      {mode==='decorate' && (
-        <div style={{
-          position:'absolute', top:8, left:'50%', transform:'translateX(-50%)',
-          background:'rgba(10,8,30,0.92)', border:'1.5px solid #ffb020',
-          borderRadius:8, padding:'5px 10px', display:'flex', gap:6, zIndex:10,
-        }}>
-          {FURNITURE_ITEMS.map(item=>(
-            <button key={item.key} onClick={()=>setSelectedTile(item.tile)} title={item.label}
-              style={{
-                background: selectedTile===item.tile ? '#ffb020' : 'rgba(255,255,255,0.1)',
-                border: selectedTile===item.tile ? '1px solid #fff' : '1px solid rgba(255,255,255,0.3)',
-                borderRadius:4, padding:'3px 6px', cursor:'pointer', fontSize:16,
-                color:'#fff', fontWeight:'bold',
-              }}>
-              {item.icon}
-              <div style={{fontSize:8,marginTop:1,opacity:0.8}}>{item.label}</div>
-            </button>
-          ))}
-        </div>
-      )}
-      <canvas ref={cvRef} width={CANVAS_W} height={CANVAS_H} onClick={handleClick}
-        style={{
-          imageRendering:'pixelated', display:'block', maxWidth:'100%',
-          borderRadius:10, border:'1.5px solid #ccc0b0',
-          boxShadow:'0 4px 28px rgba(8,4,16,0.4)',
-          cursor: mode==='decorate' ? 'crosshair' : 'default'
-        }}
-      />
-    </div>
+    <canvas
+      ref={cvRef}
+      width={CW}
+      height={CH}
+      style={{
+        imageRendering:'pixelated', display:'block', maxWidth:'100%',
+        borderRadius:10, border:'1.5px solid #ccc0b0',
+        boxShadow:'0 4px 28px rgba(8,4,16,0.4)',
+      }}
+    />
   )
 }
