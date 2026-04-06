@@ -548,7 +548,7 @@ export default function PixelOffice({activeAgentId}:Props){
           const isLastRow=(tr===6), isFirstRow=(tr===2)
           fr(x,y,TS,TS,(tc+tr)%2===0?P.fl:P.flD)
           if(isLastRow){
-            fr(x+3,y+TOP+2,4,FACE,P.mtLeg||'#3a1808'); fr(x+TS-7,y+TOP+2,4,FACE,P.mtLeg||'#3a1808')
+            fr(x+3,y+TOP+2,4,FACE,'#3a1808'); fr(x+TS-7,y+TOP+2,4,FACE,'#3a1808')
             fr(x,y+TOP,TS,FACE,P.mtFace)
             fr(x,y+TOP,TS,2,shade(P.mtFace,20)); fr(x+TS-3,y+TOP,3,FACE,shade(P.mtFace,-20))
           }
