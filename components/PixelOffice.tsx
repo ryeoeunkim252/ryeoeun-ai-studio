@@ -90,9 +90,9 @@ const SEATS:{tc:number;tr:number}[] = [
 ]
 
 const MEET_SEATS = [
-  {tc:20,tr:3,side:'l'},{tc:25,tr:3,side:'r'},  // 첫 쌍: 좌우
-  {tc:20,tr:4,side:'l'},{tc:25,tr:4,side:'r'},  // 둘째 쌍: 좌우
-  {tc:20,tr:5,side:'l'},{tc:25,tr:5,side:'r'},  // 셋째 쌍: 좌우
+  {tc:22,tr:3,side:'l'},{tc:25,tr:3,side:'r'},  // 좌우 교차
+  {tc:22,tr:4,side:'l'},{tc:25,tr:4,side:'r'},
+  {tc:22,tr:5,side:'l'},{tc:25,tr:5,side:'r'},
 ]
 
 function buildMap(): TileT[][] {
@@ -102,33 +102,28 @@ function buildMap(): TileT[][] {
   for(let c=0;c<COLS;c++){m[0][c]=TL.W;m[ROWS-1][c]=TL.W}
   for(let r=0;r<ROWS;r++){m[r][0]=TL.W;m[r][COLS-1]=TL.W}
 
-  // 칸막이 (col 19, 문: row 6,7)
-  for(let r=1;r<ROWS-1;r++) m[r][19]=r===6||r===7?TL.DOOR:TL.DIV
+  // ③ 칸막이 완전 제거 → col 19는 그냥 F (바닥)
+  // (에이전트 자유 통행!)
 
-  // 책장 (상단 벽, 콘텐츠존 오른쪽부터)
-  for(let c=8;c<19;c++) m[1][c]=TL.SH
+  // 책장 (상단 벽 전체)
+  for(let c=8;c<COLS-1;c++) m[1][c]=TL.SH
   m[0][12]=TL.CLK
 
-  // ── 콘텐츠존 바닥 (좌상단 2x2, 벽에서 떨어짐: cols 1-7, rows 2-8) ──
+  // ── 콘텐츠존 바닥 (cols 1-7, rows 2-8) ──
   for(let r=2;r<=8;r++) for(let c=1;c<=7;c++) m[r][c]=TL.CF
 
-  // 카펫 복도 (row 9, row 13 - 걷기 통로)
-  for(let c=1;c<19;c++){
+  // 카펫 복도 (row 9, row 13)
+  for(let c=1;c<COLS-1;c++){
     if(m[9][c]!==TL.CF) m[9][c]=TL.CP
     m[13][c]=TL.CP
   }
 
   // ── 총괄실장 빅 데스크 (cols 9-12, row 2) ──
   m[2][9]=TL.BDK; m[2][10]=TL.BDK; m[2][11]=TL.BDK; m[2][12]=TL.BDK
-  m[2][13]=TL.MN  // 모니터
-  m[3][10]=TL.CH; m[3][11]=TL.CH   // 빅 의자 2개
+  m[2][13]=TL.MN
+  m[3][10]=TL.CH; m[3][11]=TL.CH
 
-  // 총괄실장 양쪽 화분
-  m[2][8]=TL.PL; m[2][14]=TL.PL
-
-  // ── 콘텐츠팀 2x2 책상 (buildMap에서 직접 배치) ──
-  // 콘텐츠팀장 (tc=2, tr=2), 기획팀 (tc=5, tr=2)
-  // 디자인팀 (tc=2, tr=5), 채널운영팀 (tc=5, tr=5)
+  // ── 콘텐츠팀 2x2 책상 ──
   const contentSeats=[{tc:2,tr:2},{tc:5,tr:2},{tc:2,tr:5},{tc:5,tr:5}]
   contentSeats.forEach(s=>{
     m[s.tr][s.tc]=TL.DK
@@ -137,44 +132,45 @@ function buildMap(): TileT[][] {
   })
 
   // ── 전략기획실장 (tc=16, tr=2) ──
-  m[2][16]=TL.DK; m[2][17]=TL.MN; m[3][16]=TL.CH;  // ← 세미콜론 필수!
+  m[2][16]=TL.DK; m[2][17]=TL.MN; m[3][16]=TL.CH;
 
   // ── 하단 3팀 ──
-  // 수익화팀 (tc=4, tr=11), 자동화팀 (tc=9, tr=11), 데이터팀 (tc=14, tr=11)
   [{tc:4,tr:11},{tc:9,tr:11},{tc:14,tr:11}].forEach(s=>{
     m[s.tr][s.tc]=TL.DK
-    if(s.tc+1<19) m[s.tr][s.tc+1]=TL.MN
+    if(s.tc+1<COLS-1) m[s.tr][s.tc+1]=TL.MN
     if(s.tr+1<ROWS-2) m[s.tr+1][s.tc]=TL.CH
   })
 
-  // ── 장식 화분 (적당히) ───────────────────────────────────────
+  // ── 장식 화분 ──────────────────────────────────────────────────
   m[2][8]=TL.PL;  m[2][14]=TL.PL   // CEO 빅데스크 양쪽
-  m[10][1]=TL.PL                     // 빨간→ 이동됨 (수익화팀 왼쪽 빈 공간)
-  m[9][13]=TL.PL                     // 파란→ 이동됨 (복도 중앙)
-  m[ROWS-2][1]=TL.PL                 // 하단 왼쪽 코너
+  m[7][2]=TL.PL                      // ① 콘텐츠존 왼쪽 모서리 안쪽!
+  m[ROWS-2][1]=TL.PL                 // 하단 왼쪽
   m[ROWS-2][10]=TL.PL                // 하단 중앙
   m[ROWS-2][17]=TL.PL                // 하단 오른쪽
-  // ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────
 
-  // ── 회의실 (테이블 좌우 대칭 정렬) ──────────────────────────
-  m[1][22]=TL.TV; m[1][23]=TL.TV                 // TV 상단 중앙
-  for(let r=2;r<=6;r++){m[r][22]=TL.MT;m[r][23]=TL.MT}  // 테이블 (중앙)
-  // 상단/하단 의자
-  m[1][21]=TL.CH; m[1][24]=TL.CH                // 테이블 윗 의자 2개
-  m[7][21]=TL.CH; m[7][24]=TL.CH                // 테이블 아래 의자 2개
-  // 좌우 대칭: col 20(왼쪽), col 25(오른쪽)
-  m[3][20]=TL.CH; m[4][20]=TL.CH; m[5][20]=TL.CH   // 왼쪽 의자 3개
-  m[3][25]=TL.CH; m[4][25]=TL.CH; m[5][25]=TL.CH   // 오른쪽 의자 3개
-
-  // 파란→ m[14][20], 초록→ m[14][26] (이동됨)
+  // ── ② 회의실 (테이블 오른쪽 1칸, 의자 붙이기, TV 코너) ──────────
+  // TV(캐비닛) → 최상단 좌(col 20)·우(col 26) 코너에 1개씩
+  m[1][20]=TL.TV
+  m[1][26]=TL.TV
+  // 테이블: 오른쪽 1칸 이동 → cols 23-24, rows 2-6
+  for(let r=2;r<=6;r++){m[r][23]=TL.MT; m[r][24]=TL.MT}
+  // 의자: 테이블 바로 위(붙임)
+  m[1][23]=TL.CH; m[1][24]=TL.CH
+  // 의자: 테이블 바로 아래(붙임)
+  m[7][23]=TL.CH; m[7][24]=TL.CH
+  // 의자: 테이블 바로 왼쪽(붙임)
+  m[3][22]=TL.CH; m[4][22]=TL.CH; m[5][22]=TL.CH
+  // 의자: 테이블 바로 오른쪽(붙임)
+  m[3][25]=TL.CH; m[4][25]=TL.CH; m[5][25]=TL.CH
+  // 회의실 화분
   m[ROWS-2][20]=TL.PL; m[ROWS-2][26]=TL.PL
 
-  // ── 비서 전용 빅 데스크 (오른쪽 1칸 이동: cols 22-24) ───────
-  m[11][22]=TL.BDK; m[11][23]=TL.BDK; m[11][24]=TL.BDK  // 빅 데스크 3칸
-  m[11][25]=TL.MN                                          // 모니터
-  m[12][23]=TL.CH; m[12][24]=TL.CH                        // 의자 2개
-  // 비서 양쪽 통로 확보 (PL 없음)
-  m[ROWS-2][23]=TL.PL                                      // 아래 화분 하나만
+  // ── 비서 전용 빅 데스크 (cols 22-24, row 11) ──────────────────
+  m[11][22]=TL.BDK; m[11][23]=TL.BDK; m[11][24]=TL.BDK
+  m[11][25]=TL.MN
+  m[12][23]=TL.CH; m[12][24]=TL.CH
+  m[ROWS-2][23]=TL.PL
 
   m[0][3]=TL.FR; m[0][10]=TL.FR; m[0][15]=TL.FR; m[0][22]=TL.FR; m[0][25]=TL.FR
 
@@ -552,20 +548,16 @@ export default function PixelOffice({activeAgentId}:Props){
         mt.active=true;mt.cd=2800+Math.random()*2000
         const shuffled=[...agRef.current].sort(()=>Math.random()-0.5)
         const cnt=2+Math.floor(Math.random()*3)
-        const DOOR_X=2+19*TS+TS/2,DOOR_Y=2+6*TS+TS/2
         shuffled.slice(0,cnt).forEach((ag,i)=>{
           const ms=MEET_SEATS[i%MEET_SEATS.length]
           ag.tx=2+ms.tc*TS+TS/2;ag.ty=2+(ms.tr+1)*TS+4
-          ag.mode='toMeet';ag.atMeet=false;ag.wp=[]
-          if(ag.x<2+19*TS) ag.wp=[{x:DOOR_X,y:DOOR_Y}]
+          ag.mode='toMeet';ag.atMeet=false;ag.wp=[]  // 칸막이 없으므로 웨이포인트 불필요
         })
       } else if(mt.active&&mt.cd<=0){
         mt.active=false;mt.cd=3500+Math.random()*2500
-        const DOOR_X=2+19*TS+TS/2,DOOR_Y=2+6*TS+TS/2
         agRef.current.forEach(ag=>{
           if(ag.mode==='inMeet'||ag.mode==='toMeet'){
             ag.mode='fromMeet';ag.tx=ag.sx;ag.ty=ag.sy;ag.atMeet=false;ag.wp=[]
-            if(ag.x>2+19*TS&&ag.sx<2+19*TS) ag.wp=[{x:DOOR_X,y:DOOR_Y}]
           }
         })
       }
