@@ -647,16 +647,16 @@ export default function Home() {
             ))}
           </div>
 
-          {/* @멘션 버튼 - 조직도 영문명 통일 */}
+          {/* @멘션 버튼 - 겉은 한국어, 채팅창엔 영문 */}
           <div className="px-3 py-2 flex gap-1.5 flex-wrap flex-shrink-0"
             style={{ borderTop:'1px solid var(--blush-b)',background:'#fff' }}>
             {[
-              { k: '@CoS',        label: '@CoS',        c: '#c06080', bg:'rgba(192,96,128,0.1)',  b:'rgba(192,96,128,0.3)' },
-              { k: '@Strategy',   label: '@Strategy',   c: '#1d9e75', bg:'rgba(29,158,117,0.1)',  b:'rgba(29,158,117,0.3)' },
-              { k: '@Content',    label: '@Content',    c: '#d85a30', bg:'rgba(216,90,48,0.1)',   b:'rgba(216,90,48,0.3)'  },
-              { k: '@Revenue',    label: '@Revenue',    c: '#ba7517', bg:'rgba(186,117,23,0.1)',  b:'rgba(186,117,23,0.3)' },
-              { k: '@Automation', label: '@Automation', c: '#378add', bg:'rgba(55,138,221,0.1)',  b:'rgba(55,138,221,0.3)' },
-              { k: '@Data',       label: '@Data',       c: '#3b6d11', bg:'rgba(59,109,17,0.1)',   b:'rgba(59,109,17,0.3)'  },
+              { k: '@CoS',        label: '@총괄실장',  c: '#c06080', bg:'rgba(192,96,128,0.1)',  b:'rgba(192,96,128,0.3)' },
+              { k: '@Strategy',   label: '@전략실장',  c: '#1d9e75', bg:'rgba(29,158,117,0.1)',  b:'rgba(29,158,117,0.3)' },
+              { k: '@Content',    label: '@콘텐츠팀장',c: '#d85a30', bg:'rgba(216,90,48,0.1)',   b:'rgba(216,90,48,0.3)'  },
+              { k: '@Revenue',    label: '@수익화팀장',c: '#ba7517', bg:'rgba(186,117,23,0.1)',  b:'rgba(186,117,23,0.3)' },
+              { k: '@Automation', label: '@자동화팀장',c: '#378add', bg:'rgba(55,138,221,0.1)',  b:'rgba(55,138,221,0.3)' },
+              { k: '@Data',       label: '@데이터팀장',c: '#3b6d11', bg:'rgba(59,109,17,0.1)',   b:'rgba(59,109,17,0.3)'  },
             ].map(({ k, label, c, bg, b }) => (
               <button key={k} onClick={() => setInput(v => v + k + ' ')}
                 className="text-[10px] px-2.5 py-1 rounded-full"
