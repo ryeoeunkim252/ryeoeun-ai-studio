@@ -230,17 +230,27 @@ export default function Settings() {
                     {/* 아이콘 */}
                     <span style={{ fontSize: 16, width: 22, flexShrink: 0 }}>{getIcon(id)}</span>
 
-                    {/* 이름 + 역할/설명 */}
+                    {/* 이름 + 역할/설명 항상 편집 가능 */}
                     <div className="flex-1 min-w-0">
                       <input value={getName(id)} onChange={e => updateName(id, e.target.value)}
                         className="w-full px-2 py-1 rounded-lg text-[12px] font-medium outline-none"
                         style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
-                      {!isEditing && (
-                        <div className="mt-1 px-1">
-                          <p className="text-[10px] font-medium" style={{ color: 'var(--blush)' }}>{getRole(id)}</p>
-                          <p className="text-[10px]" style={{ color: 'var(--muted)' }}>{getDesc(id)}</p>
-                        </div>
-                      )}
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        <input value={getRole(id)} onChange={e => updateRole(id, e.target.value)}
+                          placeholder="역할 (예: 웹 개발/디자인)"
+                          className="w-full px-2 py-0.5 rounded text-[10px] font-medium outline-none"
+                          style={{ background: 'transparent', border: '1px solid transparent', color: 'var(--blush)',
+                            borderColor: 'transparent' }}
+                          onFocus={e => (e.target.style.borderColor = 'var(--blush)')}
+                          onBlur={e => (e.target.style.borderColor = 'transparent')} />
+                        <input value={getDesc(id)} onChange={e => updateDesc(id, e.target.value)}
+                          placeholder="설명 (예: Next.js로 웹을 만들어요)"
+                          className="w-full px-2 py-0.5 rounded text-[10px] outline-none"
+                          style={{ background: 'transparent', border: '1px solid transparent', color: 'var(--muted)',
+                            borderColor: 'transparent' }}
+                          onFocus={e => (e.target.style.borderColor = 'var(--border)')}
+                          onBlur={e => (e.target.style.borderColor = 'transparent')} />
+                      </div>
                     </div>
 
                     {/* 모델 선택 */}
@@ -285,28 +295,16 @@ export default function Settings() {
                     )}
                   </div>
 
-                  {/* ✅ 세부 편집 패널 (펼쳐지는 형태) */}
+                  {/* ✅ 세부 편집 패널 - 미리보기 + 힌트 */}
                   {isEditing && (
-                    <div className="mt-2 flex flex-col gap-1.5 pt-2"
+                    <div className="mt-2 pt-2 flex flex-col gap-1.5"
                       style={{ borderTop: '1px solid var(--border)' }}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] w-12 flex-shrink-0" style={{ color: 'var(--muted)' }}>역할</span>
-                        <input value={getRole(id)} onChange={e => updateRole(id, e.target.value)}
-                          placeholder="예: 웹 개발/디자인"
-                          className="flex-1 px-2 py-1 rounded-lg text-[11px] outline-none"
-                          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] w-12 flex-shrink-0" style={{ color: 'var(--muted)' }}>설명</span>
-                        <input value={getDesc(id)} onChange={e => updateDesc(id, e.target.value)}
-                          placeholder="예: Next.js · Tailwind 로 웹을 만들어요"
-                          className="flex-1 px-2 py-1 rounded-lg text-[11px] outline-none"
-                          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)' }} />
-                      </div>
-                      {/* 현재 값 미리보기 */}
-                      <div className="text-[10px] px-2 py-1 rounded-lg"
+                      <p className="text-[10px] px-1" style={{ color: 'var(--muted)' }}>
+                        💡 위 역할·설명 칸을 클릭해서 바로 수정할 수 있어요!
+                      </p>
+                      <div className="text-[10px] px-2 py-1.5 rounded-lg"
                         style={{ background: 'var(--blush-l)', color: 'var(--blush)' }}>
-                        👁️ 미리보기: <strong>{getName(id)}</strong> · {getRole(id)} — {getDesc(id)}
+                        👁️ <strong>{getName(id)}</strong> · {getRole(id)} — {getDesc(id)}
                       </div>
                     </div>
                   )}
