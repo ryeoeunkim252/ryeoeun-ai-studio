@@ -67,10 +67,20 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-        {/* ── CEO (중앙) + 비서 (오른쪽, CEO와 선으로 연결) ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 24, width: '100%' }}>
+        {/* ── CEO (정중앙) + 비서 (오른쪽 실선 연결) ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, width: '100%' }}>
 
-          {/* CEO 박스 */}
+          {/* 왼쪽 투명 거울 (비서 영역과 동일 크기 → CEO 정중앙 고정) */}
+          <div style={{ display: 'flex', alignItems: 'center', visibility: 'hidden', pointerEvents: 'none', flexShrink: 0 }}>
+            <div style={{ width: 32, height: 2 }} />
+            <div style={{ padding: '10px 16px' }}>
+              <div style={{ fontSize: 15, marginBottom: 2 }}>🪄</div>
+              <div style={{ fontSize: 12 }}>CEO 비서</div>
+              <div style={{ fontSize: 9 }}>스케줄 · 할일 · 업무보조</div>
+            </div>
+          </div>
+
+          {/* CEO 박스 - 정중앙 */}
           <div style={{
             background: 'linear-gradient(135deg, var(--blush) 0%, #c06080 100%)',
             borderRadius: 12, padding: '12px 36px', textAlign: 'center',
@@ -82,12 +92,8 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>방향 결정 · 최종 승인</div>
           </div>
 
-          {/* CEO → 비서 연결선 (실선, 딱 붙임) */}
-          <div style={{
-            width: 32, height: 2,
-            background: 'rgba(144,96,192,0.55)',
-            flexShrink: 0,
-          }} />
+          {/* 실선 연결 */}
+          <div style={{ width: 32, height: 2, background: 'rgba(144,96,192,0.55)', flexShrink: 0 }} />
 
           {/* 비서 카드 */}
           <div style={{
