@@ -119,43 +119,68 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
           })}
         </div>
 
-        {/* ── 콘텐츠본부 세부 구조 (서브팀 3개) ── */}
-        <div style={{
-          width: '100%', marginTop: 8,
-          padding: '10px 10px 8px',
-          background: 'rgba(216,90,48,0.04)',
-          border: '1px dashed rgba(216,90,48,0.3)',
-          borderRadius: 8,
-        }}>
+        {/* ── 콘텐츠본부 서브팀 (그래프 형식) ── */}
+        {/*
+          5열 그리드에서 Content는 2번째 열(중앙=30%)
+          서브팀 컨테이너 width=60% → 중앙=30% → Content 열과 정확히 정렬
+        */}
+        <div style={{ width: '100%' }}>
           <div style={{
-            fontSize: 9, color: '#d85a30', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '0.08em',
-            marginBottom: 7,
+            width: '60%',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
           }}>
-            ✦ 콘텐츠/마케팅본부 내부 구조
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            {subTeams.map(s => (
-              <div key={s.label} style={{
-                background: s.highlight ? 'rgba(216,90,48,0.1)' : 'var(--card)',
-                border: `1px solid ${s.highlight ? 'rgba(216,90,48,0.4)' : 'var(--border)'}`,
-                borderRadius: 6, padding: '6px 4px', textAlign: 'center',
-              }}>
-                <div style={{
-                  fontSize: 9, fontWeight: 700,
-                  color: s.highlight ? '#d85a30' : 'var(--text)',
-                }}>{s.label}</div>
-                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 1 }}>{s.desc}</div>
-                {s.highlight && (
+
+            {/* Content 박스 하단 → 수직 하강선 */}
+            <div style={{ width: 2, height: 12, background: 'var(--border)' }} />
+
+            {/* 수평선 + 3개 수직 하강선 */}
+            <div style={{ position: 'relative', width: '100%', height: 14 }}>
+              {/* 수평 연결선: 1열 중심(16.67%) ~ 3열 중심(83.33%) */}
+              <div style={{
+                position: 'absolute',
+                left: '16.67%', right: '16.67%',
+                top: 0, height: 2,
+                background: 'var(--border)',
+              }} />
+              {/* 3개 수직 하강선 */}
+              {[16.67, 50, 83.33].map((pct, i) => (
+                <div key={i} style={{
+                  position: 'absolute',
+                  left: `${pct}%`,
+                  top: 0, width: 2, height: 14,
+                  background: 'var(--border)',
+                  transform: 'translateX(-50%)',
+                }} />
+              ))}
+            </div>
+
+            {/* 3개 서브팀 카드 */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 6, width: '100%',
+            }}>
+              {subTeams.map(s => (
+                <div key={s.label} style={{
+                  background: s.highlight ? 'rgba(216,90,48,0.1)' : 'var(--card)',
+                  border: `1px solid ${s.highlight ? 'rgba(216,90,48,0.5)' : 'var(--border)'}`,
+                  borderTop: `2px solid ${s.highlight ? '#d85a30' : 'rgba(216,90,48,0.3)'}`,
+                  borderRadius: 7, padding: '8px 4px', textAlign: 'center',
+                }}>
                   <div style={{
-                    marginTop: 3,
-                    fontSize: 7, color: '#d85a30',
-                    background: 'rgba(216,90,48,0.1)',
-                    borderRadius: 3, padding: '1px 4px', display: 'inline-block',
-                  }}>NEW</div>
-                )}
-              </div>
-            ))}
+                    fontSize: 10, fontWeight: 700,
+                    color: s.highlight ? '#d85a30' : 'var(--text)',
+                  }}>{s.label}</div>
+                  <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{s.desc}</div>
+                  {s.highlight && (
+                    <div style={{
+                      marginTop: 3, fontSize: 7, color: '#d85a30',
+                      background: 'rgba(216,90,48,0.12)',
+                      borderRadius: 3, padding: '1px 5px', display: 'inline-block',
+                    }}>NEW</div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
