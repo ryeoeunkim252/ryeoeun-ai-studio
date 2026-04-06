@@ -93,9 +93,27 @@ function OrgChart({ tasks }: { tasks: Task[] }) {
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>PM + COO · 업무배분 · KPI관리</div>
         </div>
 
-        {/* ③ 선명한 연결선 */}
+        {/* 총괄실장 → 5개 팀 연결선 (수직 + 수평 + 5개 수직 하강선) */}
         <div style={{ width: 2, height: 14, background: LINE_COLOR }} />
-        <div style={{ width: '100%', height: 2, background: LINE_COLOR }} />
+        <div style={{ position: 'relative', width: '100%', height: 14 }}>
+          {/* 수평선: 1열 중심(10%) ~ 5열 중심(90%) */}
+          <div style={{
+            position: 'absolute',
+            left: '10%', right: '10%',
+            top: 0, height: 2,
+            background: LINE_COLOR,
+          }} />
+          {/* 5개 수직 하강선 (각 열의 중심) */}
+          {[10, 30, 50, 70, 90].map((pct, i) => (
+            <div key={i} style={{
+              position: 'absolute',
+              left: `${pct}%`,
+              top: 0, width: 2, height: 14,
+              background: LINE_COLOR,
+              transform: 'translateX(-50%)',
+            }} />
+          ))}
+        </div>
 
         {/* ── 5개 부서 ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, width: '100%' }}>
