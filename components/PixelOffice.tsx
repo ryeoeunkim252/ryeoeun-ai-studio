@@ -5,34 +5,27 @@ import { loadData, DEFAULT_SETTINGS, type AppSettings } from '@/lib/store'
 
 interface Props { activeAgentId?: AgentId | null }
 
-// ══════════════════════════════════════════
-//  상수 (오피스 크기 확장)
-// ══════════════════════════════════════════
 const CW = 1008, CH = 576
 const TS = 36
 const COLS = 28, ROWS = 16
 const FONT = "'Pretendard','Noto Sans KR',sans-serif"
-const CHAR_W = 34
-const CHAR_H = 60
+const CHAR_W = 34, CHAR_H = 60
 
-// ══════════════════════════════════════════
-//  타일 타입
-// ══════════════════════════════════════════
 const TL = {
   F:1, W:2, SH:3, CLK:4, DK:5, MN:6, CH:7, PL:8, CP:9,
   DIV:10, WB:11, MT:12, SF:13, SF_A:14, FR:15, TV:16, DOOR:17,
-  CF:18, // 콘텐츠존 전용 바닥 (따뜻한 주황 카펫)
+  CF:18, // 콘텐츠존 바닥
+  BDK:19, // 총괄실장 빅 데스크 (특별 렌더)
 } as const
 type TileT = typeof TL[keyof typeof TL]
 const WALKABLE = new Set<TileT>([TL.F, TL.CP, TL.DOOR, TL.CH, TL.CF])
 
-// ══════════════════════════════════════════
-//  팔레트
-// ══════════════════════════════════════════
 const P = {
   fl:'#f0ebe0', flD:'#e4ddd0', flLine:'rgba(170,150,120,0.15)',
   wl:'#eae5f5', wlT:'#dad4ec', wlB:'#c8c0e0',
   dkTop:'#c89858', dkFace:'#9a7030', dkEdge:'#7a5020', dkLeg:'#5a3810',
+  // 빅 데스크 (총괄실장) - 더 어두운 고급 우드
+  bdkTop:'#8a5c28', bdkFace:'#5c3810', bdkEdge:'#3c2008', bdkLeg:'#2c1408',
   chBack:'#4a7090', chSeat:'#5a82a8', chFace:'#384f68', chLeg:'#283848',
   mtTop:'#6a3818', mtFace:'#4a2408', mtEdge:'#8a4c20',
   shWood:'#b87830', shDark:'#7a4e18',
@@ -43,88 +36,124 @@ const P = {
   cfOrange:'#f5ddc8', cfD:'#edd0b8', cfLine:'rgba(210,120,60,0.18)',
   wbBd:'#404858', wbSurf:'#f6f6f2',
   frG:'#c89040', frP:'#7a3898', frB:'#2858a8',
-  divBar:'#8890b8',
-  mnBd:'#1a1830', mnScr:'#080818',
+  divBar:'#8890b8', mnBd:'#1a1830', mnScr:'#080818',
   tvBd:'#1e1c2c', tvScr:'#0e0c1c',
 }
 
-// ══════════════════════════════════════════
-//  에이전트 정의
-// ══════════════════════════════════════════
 interface AgDef {
   id:string; name:string
   hair:string; skin:string; shirt:string; pants:string; shoes:string
   accent:string; seat:{tc:number;tr:number}
+  sitDir:'u'|'d'|'l'|'r'  // 앉아있을 때 방향
 }
+
+// ══ 레이아웃 계획 ══════════════════════════════════════════
+//
+//  [W] [CF콘텐츠존] [F F F F F F F] [총괄실장-빅데스크] [F F] [DIV] [회의실]
+//  왼쪽벽: 콘텐츠4명 세로 배치
+//  상단 중앙: 총괄실장 빅 데스크 (혼자 크게, 전체를 내려다보는 위치)
+//  나머지 5팀: 오른쪽 영역에 자유 배치
+//
+// ══════════════════════════════════════════════════════════
+
 const BASE:Omit<AgDef,'seat'>[] = [
-  {id:'router',          name:'총괄실장',   hair:'#18103a',skin:'#f4c890',shirt:'#1e3a6a',pants:'#0f1f38',shoes:'#08080e',accent:'#ff7070'},
-  {id:'research',        name:'전략기획실', hair:'#283818',skin:'#f0c896',shirt:'#207840',pants:'#0e3a18',shoes:'#081008',accent:'#60e880'},
-  {id:'content',         name:'콘텐츠팀장', hair:'#b03878',skin:'#fad7a0',shirt:'#7830a8',pants:'#3a1048',shoes:'#1e0818',accent:'#ff70b8'},
-  {id:'content_plan',    name:'기획팀',     hair:'#c87038',skin:'#fde3a7',shirt:'#c84028',pants:'#480808',shoes:'#180808',accent:'#ffb060'},
-  {id:'content_design',  name:'디자인팀',   hair:'#e0c048',skin:'#f8d8b0',shirt:'#b82830',pants:'#280810',shoes:'#100808',accent:'#ff9060'},
-  {id:'content_channel', name:'채널운영팀', hair:'#203868',skin:'#f5c8a0',shirt:'#c06020',pants:'#381808',shoes:'#140808',accent:'#ffd070'},
-  {id:'web',             name:'수익화팀',   hair:'#0a90b0',skin:'#fde3a7',shirt:'#1a70c0',pants:'#112248',shoes:'#0e1826',accent:'#60bfff'},
-  {id:'ops',             name:'자동화팀',   hair:'#080808',skin:'#c07848',shirt:'#1e3848',pants:'#101820',shoes:'#060808',accent:'#60e0e0'},
-  {id:'edu',             name:'데이터팀',   hair:'#080808',skin:'#fde8d0',shirt:'#c04820',pants:'#481808',shoes:'#180808',accent:'#ffb060'},
+  // 총괄실장 - CEO, 상단 중앙 빅 데스크, 아래 바라봄
+  {id:'router',          name:'총괄실장',   sitDir:'d', hair:'#18103a',skin:'#f4c890',shirt:'#1e3a6a',pants:'#0f1f38',shoes:'#08080e',accent:'#ff7070'},
+  // 콘텐츠팀 4명 - 왼쪽 벽, 오른쪽(사무실 중앙) 바라봄
+  {id:'content',         name:'콘텐츠팀장', sitDir:'r', hair:'#b03878',skin:'#fad7a0',shirt:'#7830a8',pants:'#3a1048',shoes:'#1e0818',accent:'#ff70b8'},
+  {id:'content_plan',    name:'기획팀',     sitDir:'r', hair:'#c87038',skin:'#fde3a7',shirt:'#c84028',pants:'#480808',shoes:'#180808',accent:'#ffb060'},
+  {id:'content_design',  name:'디자인팀',   sitDir:'r', hair:'#e0c048',skin:'#f8d8b0',shirt:'#b82830',pants:'#280810',shoes:'#100808',accent:'#ff9060'},
+  {id:'content_channel', name:'채널운영팀', sitDir:'r', hair:'#203868',skin:'#f5c8a0',shirt:'#c06020',pants:'#381808',shoes:'#140808',accent:'#ffd070'},
+  // 나머지 4팀 - 오른쪽 영역 배치
+  {id:'research',        name:'전략기획실', sitDir:'d', hair:'#283818',skin:'#f0c896',shirt:'#207840',pants:'#0e3a18',shoes:'#081008',accent:'#60e880'},
+  {id:'web',             name:'수익화팀',   sitDir:'d', hair:'#0a90b0',skin:'#fde3a7',shirt:'#1a70c0',pants:'#112248',shoes:'#0e1826',accent:'#60bfff'},
+  {id:'ops',             name:'자동화팀',   sitDir:'d', hair:'#080808',skin:'#c07848',shirt:'#1e3848',pants:'#101820',shoes:'#060808',accent:'#60e0e0'},
+  {id:'edu',             name:'데이터팀',   sitDir:'d', hair:'#080808',skin:'#fde8d0',shirt:'#c04820',pants:'#481808',shoes:'#180808',accent:'#ffb060'},
 ]
+
 const SEATS:{tc:number;tr:number}[] = [
-  {tc:14, tr:2},  // 총괄실장 (우측 상단 프리미엄)
-  {tc:1,  tr:2},  // 전략기획실 (좌측 상단)
-  {tc:5,  tr:2},  // 콘텐츠팀장 (콘텐츠존 좌상)
-  {tc:9,  tr:2},  // 기획팀 (콘텐츠존 우상)
-  {tc:5,  tr:6},  // 디자인팀 (콘텐츠존 좌하)
-  {tc:9,  tr:6},  // 채널운영팀 (콘텐츠존 우하)
-  {tc:14, tr:7},  // 수익화팀 (우측 중단)
-  {tc:1,  tr:9},  // 자동화팀 (좌측 하단)
-  {tc:4,  tr:12}, // 데이터팀 (하단)
+  {tc:10, tr:2},  // 총괄실장 - 상단 중앙 (빅 데스크 중심점)
+  // 콘텐츠 4명 - 왼쪽 벽 (cols 1-2)
+  {tc:1,  tr:2},  // 콘텐츠팀장
+  {tc:1,  tr:5},  // 기획팀
+  {tc:1,  tr:8},  // 디자인팀
+  {tc:1,  tr:11}, // 채널운영팀
+  // 나머지 4팀 - 우측 영역 자유 배치
+  {tc:6,  tr:2},  // 전략기획실 (좌측 중단)
+  {tc:14, tr:2},  // 수익화팀 (우측 상단)
+  {tc:6,  tr:9},  // 자동화팀 (좌측 하단)
+  {tc:14, tr:9},  // 데이터팀 (우측 하단)
 ]
+
 const MEET_SEATS = [
   {tc:21,tr:3,side:'l'},{tc:21,tr:4,side:'l'},{tc:21,tr:5,side:'l'},
   {tc:24,tr:3,side:'r'},{tc:24,tr:4,side:'r'},{tc:24,tr:5,side:'r'},
 ]
 
-// ══════════════════════════════════════════
-//  맵 생성
-// ══════════════════════════════════════════
 function buildMap(agents:AgDef[]): TileT[][] {
   const m:TileT[][] = Array.from({length:ROWS},()=>Array(COLS).fill(TL.F) as TileT[])
+
+  // 외벽
   for(let c=0;c<COLS;c++){m[0][c]=TL.W;m[ROWS-1][c]=TL.W}
   for(let r=0;r<ROWS;r++){m[r][0]=TL.W;m[r][COLS-1]=TL.W}
+
+  // 칸막이 (col 19, 문: row 6,7)
   for(let r=1;r<ROWS-1;r++) m[r][19]=r===6||r===7?TL.DOOR:TL.DIV
-  for(let c=1;c<19;c++) m[1][c]=TL.SH
-  m[0][8]=TL.CLK
-  // 콘텐츠존 바닥 (cols 4-12, rows 2-8)
-  for(let r=2;r<=8;r++) for(let c=4;c<=12;c++) m[r][c]=TL.CF
+
+  // 책장 (상단 벽, 콘텐츠존 제외)
+  for(let c=4;c<19;c++) m[1][c]=TL.SH
+  m[0][11]=TL.CLK
+
+  // ── 콘텐츠존 바닥 (왼쪽 벽, cols 1-3, rows 2-13) ──
+  for(let r=2;r<=13;r++) for(let c=1;c<=3;c++) m[r][c]=TL.CF
+
   // 카펫 복도
-  for(let c=1;c<19;c++){
-    if(m[5][c]!==TL.CF) m[5][c]=TL.CP
-    m[11][c]=TL.CP
-  }
-  // 팀 책상 배치
+  for(let c=4;c<19;c++) m[7][c]=TL.CP
+  for(let c=4;c<19;c++) m[13][c]=TL.CP
+
+  // ── 총괄실장 빅 데스크 (cols 9-12, row 2) ──
+  // BDK 타일로 넓게 배치 (4칸 너비!)
+  m[2][8]=TL.BDK; m[2][9]=TL.BDK; m[2][10]=TL.BDK; m[2][11]=TL.BDK
+  m[2][12]=TL.MN  // 모니터
+  m[3][9]=TL.CH; m[3][10]=TL.CH  // 빅 의자 2개
+
+  // 나머지 팀 책상 (총괄실장 제외, 콘텐츠팀 제외 - 인덱스 1~4)
   agents.forEach((ag,i)=>{
-    const s=SEATS[i];if(!s||s.tr>=ROWS-2) return
+    if(i===0) return  // 총괄실장 skip (이미 위에서 처리)
+    if(i>=1&&i<=4){
+      // 콘텐츠팀 4명 - 왼쪽 벽 배치
+      const s=SEATS[i]
+      m[s.tr][s.tc]=TL.DK
+      if(s.tc+2<COLS) m[s.tr][s.tc+1]=TL.MN  // 모니터 오른쪽
+      if(s.tr+1<ROWS-2) m[s.tr+1][s.tc]=TL.CH
+      return
+    }
+    const s=SEATS[i]; if(!s||s.tr>=ROWS-2) return
     m[s.tr][s.tc]=TL.DK
     if(s.tc+1<19) m[s.tr][s.tc+1]=TL.MN
     if(s.tr+1<ROWS-2) m[s.tr+1][s.tc]=TL.CH
   })
-  m[ROWS-2][1]=TL.PL;m[ROWS-2][6]=TL.PL;m[ROWS-2][10]=TL.PL;m[ROWS-2][15]=TL.PL
-  m[2][17]=TL.PL
+
+  // 장식 화분
+  m[ROWS-2][1]=TL.PL; m[ROWS-2][5]=TL.PL; m[ROWS-2][10]=TL.PL; m[ROWS-2][15]=TL.PL
+  m[2][17]=TL.PL; m[9][17]=TL.PL
+  // 총괄실장 양쪽 화분
+  m[2][7]=TL.PL; m[2][13]=TL.PL
+
   // 회의실
-  m[1][20]=TL.TV;m[1][21]=TL.TV
+  m[1][20]=TL.TV; m[1][21]=TL.TV
   for(let r=2;r<=6;r++){m[r][22]=TL.MT;m[r][23]=TL.MT}
-  m[3][21]=TL.CH;m[4][21]=TL.CH;m[5][21]=TL.CH
-  m[3][24]=TL.CH;m[4][24]=TL.CH;m[5][24]=TL.CH
-  m[1][22]=TL.CH;m[1][23]=TL.CH
-  m[7][22]=TL.CH;m[7][23]=TL.CH
-  m[9][20]=TL.SF_A;m[9][21]=TL.SF;m[9][22]=TL.SF;m[9][23]=TL.SF;m[9][24]=TL.SF_A
-  m[9][COLS-2]=TL.PL;m[ROWS-2][22]=TL.PL;m[ROWS-2][25]=TL.PL
-  m[0][3]=TL.FR;m[0][10]=TL.FR;m[0][15]=TL.FR;m[0][21]=TL.FR;m[0][25]=TL.FR
+  m[3][21]=TL.CH; m[4][21]=TL.CH; m[5][21]=TL.CH
+  m[3][24]=TL.CH; m[4][24]=TL.CH; m[5][24]=TL.CH
+  m[1][22]=TL.CH; m[1][23]=TL.CH
+  m[7][22]=TL.CH; m[7][23]=TL.CH
+  m[9][20]=TL.SF_A; m[9][21]=TL.SF; m[9][22]=TL.SF; m[9][23]=TL.SF; m[9][24]=TL.SF_A
+  m[ROWS-2][22]=TL.PL; m[ROWS-2][25]=TL.PL
+  m[0][3]=TL.FR; m[0][10]=TL.FR; m[0][15]=TL.FR; m[0][21]=TL.FR; m[0][25]=TL.FR
+
   return m
 }
 
-// ══════════════════════════════════════════
-//  말풍선
-// ══════════════════════════════════════════
 const WORK_SAY:Record<string,string[]> = {
   router:          ['전략 수립 중','업무 배분 중','보고서 검토','일정 조율 중'],
   research:        ['시장 분석 중','트렌드 탐색','기획서 작성','경쟁사 분석'],
@@ -138,9 +167,6 @@ const WORK_SAY:Record<string,string[]> = {
 }
 const MEET_SAY=['회의 중...','좋은 아이디어!','검토해볼게요','그렇군요!','진행합시다','동의합니다']
 
-// ══════════════════════════════════════════
-//  에이전트 상태
-// ══════════════════════════════════════════
 type AgMode='sit'|'roam'|'ret'|'toMeet'|'inMeet'|'fromMeet'
 interface AgState {
   def:AgDef;x:number;y:number;sx:number;sy:number
@@ -170,10 +196,12 @@ export default function PixelOffice({activeAgentId}:Props){
     mapRef.current=buildMap(allDefs)
     agRef.current=allDefs.map((def,i)=>{
       const seat=SEATS[i]||SEATS[0]
-      const sx=2+seat.tc*TS+TS/2,sy=2+(seat.tr+1)*TS+TS/2+4
+      // 총괄실장은 빅데스크 중앙에 앉음
+      const sx = i===0 ? 2+10*TS+TS/2 : 2+seat.tc*TS+TS/2
+      const sy = 2+(seat.tr+1)*TS+TS/2+4
       const pool=WORK_SAY[def.id]||WORK_SAY.ops
-      return{def,x:sx,y:sy,sx,sy,tx:sx,ty:sy,mode:'sit' as AgMode,dir:'d',
-        wf:0,timer:40+i*12+Math.random()*80,walksLeft:0,
+      return{def,x:sx,y:sy,sx,sy,tx:sx,ty:sy,mode:'sit' as AgMode,
+        dir:def.sitDir,wf:0,timer:40+i*12+Math.random()*80,walksLeft:0,
         bubble:pool[Math.floor(Math.random()*pool.length)],
         bubbleT:80+Math.random()*80,meetIdx:i%MEET_SEATS.length,atMeet:false,wp:[]}
     })
@@ -199,7 +227,6 @@ export default function PixelOffice({activeAgentId}:Props){
       const b=Math.max(0,Math.min(255,(n&0xff)+amt))
       return`#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
     }
-    const tpx=(tc:number)=>2+tc*TS
 
     const canWalk=(wx:number,wy:number)=>{
       const tc=Math.floor((wx-2)/TS),tr=Math.floor((wy-2)/TS)
@@ -208,85 +235,99 @@ export default function PixelOffice({activeAgentId}:Props){
     }
     const randFloor=(right=false):{tx:number,ty:number}=>{
       for(let i=0;i<60;i++){
-        const tc=right?20+Math.floor(Math.random()*5):1+Math.floor(Math.random()*17)
-        const tr=2+Math.floor(Math.random()*(ROWS-4))
+        const tc=right?20+Math.floor(Math.random()*5):4+Math.floor(Math.random()*14)
+        const tr=4+Math.floor(Math.random()*(ROWS-6))
         if(WALKABLE.has(mapRef.current[tr]?.[tc]))
-          return{tx:tpx(tc)+TS/2,ty:2+tr*TS+TS/2}
+          return{tx:2+tc*TS+TS/2,ty:2+tr*TS+TS/2}
       }
-      return{tx:tpx(5)+TS/2,ty:2+6*TS+TS/2}
+      return{tx:2+8*TS+TS/2,ty:2+7*TS+TS/2}
     }
 
     // ── 로블록스 아바타 ──
-    const drawRoblox=(ox:number,oy:number,def:AgDef,dir:'u'|'d'|'l'|'r',wf:number,sitting:boolean,isAct:boolean)=>{
+    const drawRoblox=(ox:number,oy:number,def:AgDef,dir:'u'|'d'|'l'|'r',wf:number,sitting:boolean,isAct:boolean,isBoss=false)=>{
       const{skin,hair,shirt,pants,shoes,accent}=def
       const cx=ox+CHAR_W/2,t=tick.current
+      // 총괄실장은 살짝 크게
+      const sc=isBoss?1.18:1
       const legSwing=(!sitting&&wf>0)?Math.sin(wf*1.5)*6:0
       const armSwing=(!sitting&&wf>0)?Math.sin(wf*1.5+Math.PI)*5:0
-      ctx.fillStyle='rgba(0,0,0,0.13)';ctx.beginPath();ctx.ellipse(cx,oy+CHAR_H+3,sitting?13:11,4,0,0,Math.PI*2);ctx.fill()
+
+      ctx.fillStyle='rgba(0,0,0,0.13)';ctx.beginPath();ctx.ellipse(cx,oy+CHAR_H*sc+3,sitting?13*sc:11*sc,4,0,0,Math.PI*2);ctx.fill()
+
       if(!sitting){
-        rr(cx+2,oy+40-legSwing,8,14,3,shade(pants,-15));rr(cx+2,oy+52-legSwing,9,7,2,shade(shoes,-10))
-        rr(cx-10,oy+40+legSwing,8,14,3,pants);rr(cx-11,oy+52+legSwing,9,7,2,shoes)
+        rr(cx+2*sc,oy+40*sc-legSwing,8*sc,14*sc,3,shade(pants,-15));rr(cx+2*sc,oy+52*sc-legSwing,9*sc,7*sc,2,shade(shoes,-10))
+        rr(cx-10*sc,oy+40*sc+legSwing,8*sc,14*sc,3,pants);rr(cx-11*sc,oy+52*sc+legSwing,9*sc,7*sc,2,shoes)
       } else {
-        rr(cx-10,oy+44,8,5,2,pants);rr(cx+2,oy+44,8,5,2,shade(pants,-15))
-        rr(cx-12,oy+44,4,8,2,shoes);rr(cx+10,oy+44,4,8,2,shade(shoes,-10))
+        rr(cx-10*sc,oy+44*sc,8*sc,5*sc,2,pants);rr(cx+2*sc,oy+44*sc,8*sc,5*sc,2,shade(pants,-15))
+        rr(cx-12*sc,oy+44*sc,4*sc,8*sc,2,shoes);rr(cx+10*sc,oy+44*sc,4*sc,8*sc,2,shade(shoes,-10))
       }
+
       if(dir==='d'||dir==='u'||sitting){
-        rr(cx-19,oy+20+armSwing,8,16,4,shirt);rr(cx-19,oy+34+armSwing,8,6,3,shade(skin,-5))
-        rr(cx+11,oy+20-armSwing,8,16,4,shade(shirt,-15));rr(cx+11,oy+34-armSwing,8,6,3,shade(skin,-10))
+        rr(cx-19*sc,oy+20*sc+armSwing,8*sc,16*sc,4,shirt);rr(cx-19*sc,oy+34*sc+armSwing,8*sc,6*sc,3,shade(skin,-5))
+        rr(cx+11*sc,oy+20*sc-armSwing,8*sc,16*sc,4,shade(shirt,-15));rr(cx+11*sc,oy+34*sc-armSwing,8*sc,6*sc,3,shade(skin,-10))
       } else if(dir==='l'){
-        rr(cx+5,oy+20+armSwing,8,16,4,shirt);rr(cx+5,oy+34+armSwing,8,6,3,shade(skin,-5))
+        rr(cx+5*sc,oy+20*sc+armSwing,8*sc,16*sc,4,shirt);rr(cx+5*sc,oy+34*sc+armSwing,8*sc,6*sc,3,shade(skin,-5))
       } else {
-        rr(cx-13,oy+20+armSwing,8,16,4,shirt);rr(cx-13,oy+34+armSwing,8,6,3,shade(skin,-5))
+        rr(cx-13*sc,oy+20*sc+armSwing,8*sc,16*sc,4,shirt);rr(cx-13*sc,oy+34*sc+armSwing,8*sc,6*sc,3,shade(skin,-5))
       }
-      rr(cx-9,oy+18,18,24,4,shirt);rr(cx+6,oy+19,3,22,3,shade(shirt,-20));rr(cx-9,oy+18,18,2,2,shade(shirt,20))
-      rr(cx-4,oy+14,8,6,2,skin)
-      const hw=24,hh=22
-      rr(cx-hw/2,oy,hw,hh,5,skin);rr(cx+hw/2-4,oy+2,4,hh-3,3,shade(skin,-18));rr(cx-hw/2,oy,hw,2,3,shade(skin,18))
-      rr(cx-hw/2-1,oy-5,hw+2,8,4,hair)
-      if(dir!=='u'){rr(cx-hw/2-2,oy,4,hh/2,3,hair);rr(cx+hw/2-2,oy,4,hh/2,3,hair)}
+      rr(cx-9*sc,oy+18*sc,18*sc,24*sc,4,shirt)
+      rr(cx+6*sc,oy+19*sc,3*sc,22*sc,3,shade(shirt,-20));rr(cx-9*sc,oy+18*sc,18*sc,2*sc,2,shade(shirt,20))
+      rr(cx-4*sc,oy+14*sc,8*sc,6*sc,2,skin)
+
+      const hw=24*sc,hh=22*sc
+      rr(cx-hw/2,oy,hw,hh,5,skin);rr(cx+hw/2-4*sc,oy+2*sc,4*sc,hh-3*sc,3,shade(skin,-18));rr(cx-hw/2,oy,hw,2*sc,3,shade(skin,18))
+      rr(cx-hw/2-1*sc,oy-5*sc,hw+2*sc,8*sc,4,hair)
+      if(dir!=='u'){rr(cx-hw/2-2*sc,oy,4*sc,hh/2,3,hair);rr(cx+hw/2-2*sc,oy,4*sc,hh/2,3,hair)}
+
       if(dir==='d'||sitting){
         ctx.fillStyle=shade(hair,20);ctx.lineWidth=2;ctx.lineCap='round'
-        ctx.beginPath();ctx.moveTo(cx-9,oy+5);ctx.lineTo(cx-4,oy+4);ctx.stroke()
-        ctx.beginPath();ctx.moveTo(cx+4,oy+4);ctx.lineTo(cx+9,oy+5);ctx.stroke()
-        rr(cx-9,oy+7,8,8,3,'#ffffff');rr(cx+1,oy+7,8,8,3,'#ffffff')
-        rr(cx-8,oy+8,6,6,3,'#1a0838');rr(cx+2,oy+8,6,6,3,'#1a0838')
-        fr(cx-6,oy+9,3,3,'rgba(255,255,255,0.9)');fr(cx+4,oy+9,3,3,'rgba(255,255,255,0.9)')
-        fr(cx-5,oy+13,2,2,'rgba(255,255,255,0.5)');fr(cx+5,oy+13,2,2,'rgba(255,255,255,0.5)')
-        ctx.fillStyle=shade(skin,-20);ctx.beginPath();ctx.moveTo(cx,oy+15);ctx.lineTo(cx-2,oy+18);ctx.lineTo(cx+2,oy+18);ctx.fill()
-        ctx.strokeStyle='#c04868';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.beginPath();ctx.arc(cx,oy+20,5,0.2,Math.PI-0.2);ctx.stroke()
+        ctx.beginPath();ctx.moveTo(cx-9*sc,oy+5*sc);ctx.lineTo(cx-4*sc,oy+4*sc);ctx.stroke()
+        ctx.beginPath();ctx.moveTo(cx+4*sc,oy+4*sc);ctx.lineTo(cx+9*sc,oy+5*sc);ctx.stroke()
+        rr(cx-9*sc,oy+7*sc,8*sc,8*sc,3,'#ffffff');rr(cx+1*sc,oy+7*sc,8*sc,8*sc,3,'#ffffff')
+        rr(cx-8*sc,oy+8*sc,6*sc,6*sc,3,'#1a0838');rr(cx+2*sc,oy+8*sc,6*sc,6*sc,3,'#1a0838')
+        fr(cx-6*sc,oy+9*sc,3*sc,3*sc,'rgba(255,255,255,0.9)');fr(cx+4*sc,oy+9*sc,3*sc,3*sc,'rgba(255,255,255,0.9)')
+        ctx.fillStyle=shade(skin,-20);ctx.beginPath();ctx.moveTo(cx,oy+15*sc);ctx.lineTo(cx-2*sc,oy+18*sc);ctx.lineTo(cx+2*sc,oy+18*sc);ctx.fill()
+        ctx.strokeStyle='#c04868';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.beginPath();ctx.arc(cx,oy+20*sc,5*sc,0.2,Math.PI-0.2);ctx.stroke()
         ctx.fillStyle='rgba(255,130,130,0.3)'
-        ctx.beginPath();ctx.ellipse(cx-9,oy+17,4,2.5,0,0,Math.PI*2);ctx.fill()
-        ctx.beginPath();ctx.ellipse(cx+9,oy+17,4,2.5,0,0,Math.PI*2);ctx.fill()
+        ctx.beginPath();ctx.ellipse(cx-9*sc,oy+17*sc,4*sc,2.5*sc,0,0,Math.PI*2);ctx.fill()
+        ctx.beginPath();ctx.ellipse(cx+9*sc,oy+17*sc,4*sc,2.5*sc,0,0,Math.PI*2);ctx.fill()
+        if(isBoss){
+          // 왕관 이모지
+          ctx.font=`${14*sc}px serif`;ctx.textAlign='center'
+          ctx.fillText('👑',cx,oy-6*sc)
+        }
         if(isAct){
           const g=0.5+Math.sin(t*5)*0.35
           ctx.strokeStyle=accent;ctx.lineWidth=2.5;ctx.globalAlpha=g
-          ctx.beginPath();ctx.roundRect(cx-hw/2-2,oy-7,hw+4,hh+9,6);ctx.stroke()
+          ctx.beginPath();ctx.roundRect(cx-hw/2-2,oy-7*sc,hw+4,hh*sc+9,6);ctx.stroke()
           ctx.globalAlpha=1
         }
       } else if(dir==='u'){
-        rr(cx-hw/2-1,oy-3,hw+2,hh+3,5,hair)
+        rr(cx-hw/2-1*sc,oy-3*sc,hw+2*sc,hh+3*sc,5,hair)
       } else {
-        const fl=dir==='l';const eX=fl?cx-7:cx+1
-        rr(eX,oy+7,7,7,3,'#ffffff');rr(fl?eX+1:eX,oy+8,5,5,3,'#1a0838')
-        fr(fl?eX+2:eX+1,oy+9,2,2,'rgba(255,255,255,0.9)')
+        // 옆모습
+        const fl=dir==='l';const eX=fl?cx-7*sc:cx+1*sc
+        rr(eX,oy+7*sc,7*sc,7*sc,3,'#ffffff');rr(fl?eX+1*sc:eX,oy+8*sc,5*sc,5*sc,3,'#1a0838')
+        fr(fl?eX+2*sc:eX+1*sc,oy+9*sc,2*sc,2*sc,'rgba(255,255,255,0.9)')
         ctx.fillStyle=shade(skin,-20);ctx.beginPath()
-        if(fl){ctx.moveTo(cx-hw/2,oy+14);ctx.lineTo(cx-hw/2-3,oy+17);ctx.lineTo(cx-hw/2,oy+18)}
-        else  {ctx.moveTo(cx+hw/2,oy+14);ctx.lineTo(cx+hw/2+3,oy+17);ctx.lineTo(cx+hw/2,oy+18)}
+        if(fl){ctx.moveTo(cx-hw/2,oy+14*sc);ctx.lineTo(cx-hw/2-3*sc,oy+17*sc);ctx.lineTo(cx-hw/2,oy+18*sc)}
+        else  {ctx.moveTo(cx+hw/2,oy+14*sc);ctx.lineTo(cx+hw/2+3*sc,oy+17*sc);ctx.lineTo(cx+hw/2,oy+18*sc)}
         ctx.fill()
         ctx.strokeStyle='#c04868';ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath()
-        if(fl) ctx.arc(cx-4,oy+20,3,0.3,Math.PI-0.3)
-        else   ctx.arc(cx+4,oy+20,3,0.3,Math.PI-0.3)
+        if(fl) ctx.arc(cx-4*sc,oy+20*sc,3*sc,0.3,Math.PI-0.3)
+        else   ctx.arc(cx+4*sc,oy+20*sc,3*sc,0.3,Math.PI-0.3)
         ctx.stroke()
       }
     }
 
-    const drawLabel=(ox:number,oy:number,name:string,active:boolean,accent:string)=>{
-      ctx.font=`bold 11px ${FONT}`;const tw=ctx.measureText(name).width+12
+    const drawLabel=(ox:number,oy:number,name:string,active:boolean,accent:string,isBoss=false)=>{
+      ctx.font=`bold ${isBoss?12:11}px ${FONT}`;const tw=ctx.measureText(name).width+(isBoss?20:12)
       const lx=ox+CHAR_W/2-tw/2,ly=oy-22
       fr(lx+1,ly+1,tw,14,'rgba(0,0,0,0.65)')
-      ctx.fillStyle=active?accent:'rgba(16,8,40,0.9)';ctx.fillRect(~~lx,~~ly,~~tw,14)
-      ctx.strokeStyle=active?'rgba(255,255,255,0.7)':'rgba(180,160,240,0.3)'
-      ctx.lineWidth=1;ctx.strokeRect(~~lx,~~ly,~~tw,14)
+      ctx.fillStyle=active?accent:isBoss?'rgba(30,10,60,0.95)':'rgba(16,8,40,0.9)'
+      ctx.fillRect(~~lx,~~ly,~~tw,14)
+      ctx.strokeStyle=active?'rgba(255,255,255,0.7)':isBoss?'rgba(255,180,100,0.6)':'rgba(180,160,240,0.3)'
+      ctx.lineWidth=isBoss?1.5:1;ctx.strokeRect(~~lx,~~ly,~~tw,14)
       ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(name,ox+CHAR_W/2,ly+10);ctx.textAlign='left'
     }
 
@@ -300,7 +341,6 @@ export default function PixelOffice({activeAgentId}:Props){
       ctx.fillStyle=meet?'#604000':'#100820';ctx.textAlign='center';ctx.fillText(text,ox+CHAR_W/2,by+12);ctx.textAlign='left'
     }
 
-    // ── 타일 렌더러 ──
     const TOP=TS*0.58|0,FACE=TS-TOP
     const drawTile=(tile:TileT,x:number,y:number,tc:number,tr:number)=>{
       const t=tick.current
@@ -321,8 +361,7 @@ export default function PixelOffice({activeAgentId}:Props){
         case TL.CP:{
           fr(x,y,TS,TS,P.cpBlue)
           for(let i=0;i<3;i++) for(let j=0;j<3;j++) fr(x+5+i*10,y+5+j*10,5,5,'rgba(100,130,200,0.2)')
-          fr(x,y,TS,2,P.cpBorder);fr(x,y+TS-2,TS,2,P.cpBorder)
-          fr(x,y,2,TS,P.cpBorder);fr(x+TS-2,y,2,TS,P.cpBorder)
+          fr(x,y,TS,2,P.cpBorder);fr(x,y+TS-2,TS,2,P.cpBorder);fr(x,y,2,TS,P.cpBorder);fr(x+TS-2,y,2,TS,P.cpBorder)
           break}
         case TL.W:{
           fr(x,y,TS,TS,P.wl);fr(x,y,TS,3,P.wlT);fr(x,y+TS-2,TS,2,P.wlB)
@@ -362,6 +401,7 @@ export default function PixelOffice({activeAgentId}:Props){
           ctx.beginPath();ctx.moveTo(x+TS/2,y+TS/2);ctx.lineTo(x+TS/2+Math.cos(sa)*11,y+TS/2+Math.sin(sa)*11);ctx.stroke()
           ctx.fillStyle='#e03030';ctx.beginPath();ctx.arc(x+TS/2,y+TS/2,1.5,0,Math.PI*2);ctx.fill()
           break}
+        // ── 일반 책상 ──
         case TL.DK:{
           fr(x,y,TS,TS,(tc+tr)%2===0?P.fl:P.flD)
           fr(x+3,y+TOP+2,4,FACE-2,P.dkLeg);fr(x+TS-7,y+TOP+2,4,FACE-2,P.dkLeg)
@@ -369,7 +409,23 @@ export default function PixelOffice({activeAgentId}:Props){
           fr(x,y,TS,TOP,P.dkTop);fr(x,y,TS,2,shade(P.dkTop,25));fr(x,y,2,TOP,shade(P.dkTop,15));fr(x+TS-3,y,3,TOP,P.dkEdge)
           ctx.strokeStyle='rgba(140,90,10,0.08)';ctx.lineWidth=0.5
           for(let i=4;i<TS;i+=8){ctx.beginPath();ctx.moveTo(x+i,y+2);ctx.lineTo(x+i+1,y+TOP-2);ctx.stroke()}
-          fr(x+3,y+5,9,7,'#ede8dc');fr(x+3,y+5,9,1,'#d8d0c0');fr(x+14,y+6,5,5,'#3870b8')
+          fr(x+3,y+5,9,7,'#ede8dc');fr(x+14,y+6,5,5,'#3870b8')
+          break}
+        // ── 총괄실장 빅 데스크 (특별 렌더) ──
+        case TL.BDK:{
+          fr(x,y,TS,TS,(tc+tr)%2===0?P.fl:P.flD)
+          fr(x+2,y+TOP+2,3,FACE-2,P.bdkLeg);fr(x+TS-5,y+TOP+2,3,FACE-2,P.bdkLeg)
+          fr(x,y+TOP,TS,FACE,P.bdkFace);fr(x,y+TOP,TS,2,shade(P.bdkFace,15));fr(x+TS-3,y+TOP,3,FACE,shade(P.bdkFace,-20))
+          fr(x,y,TS,TOP,P.bdkTop);fr(x,y,TS,2,shade(P.bdkTop,20));fr(x,y,2,TOP,shade(P.bdkTop,15));fr(x+TS-3,y,3,TOP,P.bdkEdge)
+          // 우드 그레인 (더 고급스럽게)
+          ctx.strokeStyle='rgba(80,40,10,0.12)';ctx.lineWidth=0.6
+          for(let i=4;i<TS;i+=7){ctx.beginPath();ctx.moveTo(x+i,y+2);ctx.lineTo(x+i+1,y+TOP-2);ctx.stroke()}
+          // 골드 테두리 (CEO 느낌)
+          ctx.strokeStyle='rgba(255,200,80,0.5)';ctx.lineWidth=1
+          ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+TS,y);ctx.stroke()
+          // 문서함 (크기 더 크게)
+          fr(x+3,y+4,12,8,'#ede8dc');fr(x+3,y+4,12,1,'#d8d0c0')
+          fr(x+18,y+5,6,6,'#3870b8')  // 파란 물건
           break}
         case TL.MN:{
           fr(x,y,TS,TS,(tc+tr)%2===0?P.fl:P.flD)
@@ -395,18 +451,15 @@ export default function PixelOffice({activeAgentId}:Props){
           ctx.fillStyle='rgba(0,0,0,0.1)';ctx.beginPath();ctx.ellipse(x+TS/2,y+TS-2,12,4,0,0,Math.PI*2);ctx.fill()
           fr(x+7,y+18,18,2,shade(P.ptClay,10));fr(x+8,y+20,16,10,P.ptClay)
           fr(x+8,y+20,2,10,shade(P.ptClay,20));fr(x+22,y+20,2,10,shade(P.ptClay,-20))
-          fr(x+9,y+21,6,8,shade(P.ptClay,15));fr(x+7,y+29,18,2,shade(P.ptClay,-25));fr(x+9,y+20,14,3,P.ptSoil)
-          fr(x+TS/2-1,y+8,2,12,'#2a5e10');fr(x+TS/2,y+8,1,12,'#38781a')
+          fr(x+9,y+20,14,3,P.ptSoil);fr(x+TS/2-1,y+8,2,12,'#2a5e10');fr(x+TS/2,y+8,1,12,'#38781a')
           ctx.strokeStyle='#2a6010';ctx.lineWidth=2;ctx.lineCap='round'
           ctx.beginPath();ctx.moveTo(x+TS/2,y+15);ctx.quadraticCurveTo(x+5,y+10,x+4,y+6);ctx.stroke()
           ctx.beginPath();ctx.moveTo(x+TS/2,y+13);ctx.quadraticCurveTo(x+TS-5,y+8,x+TS-4,y+4);ctx.stroke()
-          const dL=(lx:number,ly:number,rx:number,ry:number,a:number,lc:string)=>{
-            ctx.fillStyle=lc;ctx.beginPath();ctx.ellipse(lx,ly,rx,ry,a,0,Math.PI*2);ctx.fill()}
+          const dL=(lx:number,ly:number,rx:number,ry:number,a:number,lc:string)=>{ctx.fillStyle=lc;ctx.beginPath();ctx.ellipse(lx,ly,rx,ry,a,0,Math.PI*2);ctx.fill()}
           dL(x+4,y+7,8,4,Math.PI*0.25,P.lf3);dL(x+5,y+6,7,3,Math.PI*0.2,P.lf2);dL(x+5,y+5,5,2.5,Math.PI*0.18,P.lf1)
           dL(x+TS-4,y+5,8,4,-Math.PI*0.25,P.lf3);dL(x+TS-5,y+4,7,3,-Math.PI*0.2,P.lf2);dL(x+TS-5,y+3,5,2.5,-Math.PI*0.18,P.lf1)
           dL(x+TS/2,y+5,5,9,0,P.lf3);dL(x+TS/2,y+4,4,8,0,P.lf2);dL(x+TS/2,y+3,3,7,0,P.lf1)
-          ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=0.7
-          ctx.beginPath();ctx.moveTo(x+TS/2,y+10);ctx.lineTo(x+TS/2,y+2);ctx.stroke()
+          ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=0.7;ctx.beginPath();ctx.moveTo(x+TS/2,y+10);ctx.lineTo(x+TS/2,y+2);ctx.stroke()
           break}
         case TL.MT:{
           const isLastRow=(tr===6),isFirstRow=(tr===2)
@@ -428,8 +481,7 @@ export default function PixelOffice({activeAgentId}:Props){
           fr(x+1,y+TOP,TS-2,FACE,P.sfDark);fr(x+1,y+TOP,TS-2,2,shade(P.sfDark,20))
           fr(x+1,y+(TOP-(TS*0.2|0)),TS-2,TS*0.2|0,P.sfGreen);fr(x+1,y+(TOP-(TS*0.2|0)),TS-2,2,P.sfLight)
           fr(x+2,y+2,TS-4,TOP-(TS*0.2|0)-2,P.sfGreen);fr(x+2,y+2,TS-4,2,P.sfLight);fr(x+TS-4,y+2,2,TOP-(TS*0.2|0)-2,P.sfDark)
-          ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1
-          ctx.beginPath();ctx.moveTo(x+TS/2,y+3);ctx.lineTo(x+TS/2,y+(TOP-(TS*0.2|0))-2);ctx.stroke()
+          ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+TS/2,y+3);ctx.lineTo(x+TS/2,y+(TOP-(TS*0.2|0))-2);ctx.stroke()
           break}
         case TL.SF_A:{
           fr(x,y,TS,TS,(tc+tr)%2===0?P.fl:P.flD)
@@ -439,8 +491,7 @@ export default function PixelOffice({activeAgentId}:Props){
         case TL.TV:{
           fr(x,y,TS,TS,P.wl);fr(x+1,y+2,TS-2,TS-4,P.tvBd);fr(x+2,y+3,TS-4,TS-7,P.tvScr)
           ctx.globalAlpha=0.1+Math.sin(t*0.3)*0.05;ctx.fillStyle='#4080ff';ctx.fillRect(x+3,y+4,TS-6,TS-11);ctx.globalAlpha=1
-          fr(x+4,y+5,TS-8,3,'rgba(255,255,255,0.7)')
-          fr(x+4,y+10,8,2,'rgba(200,220,255,0.5)');fr(x+4,y+14,12,2,'rgba(200,220,255,0.5)');fr(x+4,y+18,6,2,'rgba(200,220,255,0.5)')
+          fr(x+4,y+5,TS-8,3,'rgba(255,255,255,0.7)');fr(x+4,y+10,8,2,'rgba(200,220,255,0.5)');fr(x+4,y+14,12,2,'rgba(200,220,255,0.5)')
           ctx.strokeStyle=shade(P.tvBd,-20);ctx.lineWidth=1;ctx.strokeRect(x+1,y+2,TS-2,TS-4)
           break}
         case TL.FR:{
@@ -449,7 +500,6 @@ export default function PixelOffice({activeAgentId}:Props){
           if(tc%3===0){
             fr(x+4,y+4,TS-8,TS-8,'#b8d0e8');ctx.fillStyle='#4878a8';ctx.beginPath()
             ctx.moveTo(x+6,y+TS-8);ctx.lineTo(x+TS/2,y+8);ctx.lineTo(x+TS-6,y+TS-8);ctx.fill()
-            ctx.fillStyle='#e8f0f8';ctx.beginPath();ctx.moveTo(x+TS/2,y+8);ctx.lineTo(x+TS/2-3,y+14);ctx.lineTo(x+TS/2+3,y+14);ctx.fill()
             fr(x+5,y+TS-10,TS-10,4,'#60a060')
           } else if(tc%3===1){
             fr(x+4,y+4,TS-8,TS-8,'#f0f0f8');ctx.fillStyle='#f0c040';ctx.beginPath();ctx.arc(x+TS/2,y+TS/2,5,0,Math.PI*2);ctx.fill()
@@ -462,7 +512,6 @@ export default function PixelOffice({activeAgentId}:Props){
       }
     }
 
-    // ── 메인 루프 ──
     let animId:number
     const loop=()=>{
       tick.current+=0.04
@@ -490,6 +539,7 @@ export default function PixelOffice({activeAgentId}:Props){
           }
         })
       }
+
       agRef.current.forEach(ag=>{
         ag.bubbleT-=1
         if(ag.bubbleT<=0){
@@ -512,7 +562,7 @@ export default function PixelOffice({activeAgentId}:Props){
         ag.timer-=0.04
         switch(ag.mode){
           case 'sit':
-            ag.dir='d'
+            ag.dir=ag.def.sitDir  // 기본 방향 유지
             if(ag.timer<=0&&!mt.active){
               if(Math.random()<0.28){
                 const tgt=randFloor(false);ag.tx=tgt.tx;ag.ty=tgt.ty;ag.mode='roam'
@@ -528,7 +578,7 @@ export default function PixelOffice({activeAgentId}:Props){
             break
           case 'ret':case 'fromMeet':
             if(ag.wp.length>0){if(moveTo(ag.wp[0].x,ag.wp[0].y,1.8)) ag.wp.shift()}
-            else{if(moveTo(ag.tx,ag.ty,1.8)){ag.x=ag.sx;ag.y=ag.sy;ag.mode='sit';ag.dir='d';ag.wf=0;ag.timer=20+Math.random()*35}}
+            else{if(moveTo(ag.tx,ag.ty,1.8)){ag.x=ag.sx;ag.y=ag.sy;ag.mode='sit';ag.dir=ag.def.sitDir;ag.wf=0;ag.timer=20+Math.random()*35}}
             break
           case 'toMeet':
             if(ag.wp.length>0){if(moveTo(ag.wp[0].x,ag.wp[0].y,1.8)) ag.wp.shift()}
@@ -544,18 +594,32 @@ export default function PixelOffice({activeAgentId}:Props){
         }
       })
 
+      // ── 렌더링 ──
       ctx.fillStyle='#f0ebe0';ctx.fillRect(0,0,CW,CH)
       for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
         const tile=mapRef.current[r]?.[c];if(tile) drawTile(tile,2+c*TS,2+r*TS,c,r)
       }
 
-      // 콘텐츠존 테두리 파티션
-      const czX=2+4*TS,czY=2+2*TS,czW=9*TS,czH=7*TS
-      ctx.strokeStyle='rgba(200,90,30,0.6)';ctx.lineWidth=3;ctx.setLineDash([8,5])
+      // 총괄실장 특별 구역 강조 (빛나는 배경)
+      const bosX=2+8*TS,bosY=2+2*TS,bosW=6*TS,bosH=3*TS
+      ctx.fillStyle=`rgba(255,200,80,${0.04+Math.sin(tick.current*0.8)*0.02})`
+      ctx.fillRect(bosX,bosY,bosW,bosH)
+      // 총괄실장 골드 테두리
+      ctx.strokeStyle=`rgba(255,180,50,${0.4+Math.sin(tick.current*0.8)*0.15})`
+      ctx.lineWidth=2;ctx.setLineDash([6,4])
+      ctx.strokeRect(bosX,bosY,bosW,bosH);ctx.setLineDash([])
+      // 총괄실장 구역 라벨
+      rr(bosX+4,bosY-18,108,18,4,'rgba(100,60,10,0.88)')
+      ctx.font=`bold 11px ${FONT}`;ctx.fillStyle='#ffd080';ctx.textAlign='left'
+      ctx.fillText('👑 총괄실장실',bosX+10,bosY-4)
+
+      // 콘텐츠존 테두리
+      const czX=2+1*TS,czY=2+2*TS,czW=3*TS,czH=12*TS
+      ctx.strokeStyle='rgba(200,90,30,0.6)';ctx.lineWidth=2.5;ctx.setLineDash([8,5])
       ctx.strokeRect(czX,czY,czW,czH);ctx.setLineDash([])
-      rr(czX+4,czY-18,120,20,4,'rgba(210,80,30,0.9)')
-      ctx.font=`bold 12px ${FONT}`;ctx.fillStyle='#fff';ctx.textAlign='left'
-      ctx.fillText('✍️ 콘텐츠 본부',czX+10,czY-4)
+      rr(czX+2,czY-18,118,18,4,'rgba(210,80,30,0.9)')
+      ctx.font=`bold 11px ${FONT}`;ctx.fillStyle='#fff';ctx.textAlign='left'
+      ctx.fillText('✍️ 콘텐츠 본부',czX+8,czY-4)
 
       // 회의실 명판
       const mrX=2+20*TS,mrW=8*TS
@@ -564,15 +628,17 @@ export default function PixelOffice({activeAgentId}:Props){
       ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,0.92)'
       ctx.fillText('🏢  회의실  ·  CONFERENCE ROOM',mrX+mrW/2,18);ctx.textAlign='left'
 
+      // 스프라이트 렌더
       const sprites:{y:number;draw:()=>void}[]=[]
       agRef.current.forEach(ag=>{
+        const isBoss=ag.def.id==='router'
         const isContentActive=actRef.current==='content'&&ag.def.id.startsWith('content')
         const isAct=actRef.current===ag.def.id||isContentActive
         const nm=s.agentNames?.[ag.def.id]||ag.def.name
-        const ox=~~(ag.x-CHAR_W/2),oy=~~(ag.y-CHAR_H)
+        const ox=~~(ag.x-CHAR_W/2),oy=~~(ag.y-CHAR_H*(isBoss?1.18:1))
         sprites.push({y:ag.y,draw:()=>{
-          drawRoblox(ox,oy,ag.def,ag.dir,ag.wf,ag.mode==='sit'||ag.mode==='inMeet',isAct)
-          drawLabel(ox,oy,nm,isAct,ag.def.accent)
+          drawRoblox(ox,oy,ag.def,ag.dir,ag.wf,ag.mode==='sit'||ag.mode==='inMeet',isAct,isBoss)
+          drawLabel(ox,oy,nm,isAct,ag.def.accent,isBoss)
           const show=isAct||ag.atMeet||(ag.mode==='sit'&&(~~(tick.current*0.35+ag.def.id.charCodeAt(0)*0.08))%4===0)
           if(show) drawBubble(ox,oy,ag.bubble,ag.def.accent,ag.atMeet)
         }})
