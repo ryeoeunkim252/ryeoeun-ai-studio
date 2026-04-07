@@ -253,7 +253,16 @@ export default function PixelOffice({activeAgentId}:Props){
 
   useEffect(()=>{
     const cv=cvRef.current;if(!cv) return
+    const dpr=window.devicePixelRatio||1
+
+    // DPR 적용: 캔버스 실제 해상도를 2배로 → 텍스트 선명하게
+    cv.width=CW*dpr
+    cv.height=CH*dpr
+    cv.style.width=`${CW}px`
+    cv.style.height=`${CH}px`
+
     const ctx=cv.getContext('2d')!
+    ctx.scale(dpr,dpr)  // 모든 드로잉을 DPR 배율로
 
     const fr=(x:number,y:number,w:number,h:number,c:string)=>{
       if(w<=0||h<=0) return
@@ -789,10 +798,10 @@ export default function PixelOffice({activeAgentId}:Props){
   },[])
 
   return(
-    <canvas ref={cvRef} width={CW} height={CH}
+    <canvas ref={cvRef}
       style={{
-        imageRendering:'pixelated',display:'block',maxWidth:'100%',
-        borderRadius:12,border:'1px solid rgba(170,160,210,0.35)',
+        display:'block', maxWidth:'100%',
+        borderRadius:12, border:'1px solid rgba(170,160,210,0.35)',
         boxShadow:'0 4px 32px rgba(16,8,48,0.16)',
       }}
     />
