@@ -216,7 +216,16 @@ export async function POST(req: Request) {
 
   const readable = new ReadableStream({
     async start(controller) {
+      // ✅ send: SSE 이벤트 전송
       const send = (obj: object) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`))
+
+      // ✅ flush: Vercel SSE 버퍼 강제 즉시 전송
+      // Vercel edge runtime은 데이터를 버퍼에 쌓았다가 한꺼번에 보내는데,
+      // 1KB 이상의 패딩 데이터를 추가하면 즉시 전송됨
+      const flush = () => {
+        const padding = ' '.repeat(1024)
+        controller.enqueue(encoder.encode(`: ${padding}\n\n`))
+      }
 
       try {
         let prevResult = ''
@@ -235,12 +244,10 @@ export async function POST(req: Request) {
             const keywordTeam = getKeywordTeam(step.task)
 
             if (keywordTeam && workingAgentIds.includes(keywordTeam)) {
-              // ✅ 키워드 매칭 → 즉시 팀 결정
               targetAgentId = keywordTeam
               routerReason = '키워드 기반 자동 배정'
-              refinedTask = step.task // 일단 원본 사용
+              refinedTask = step.task
             } else {
-              // ✅ AI 라우터 호출
               const teamList = workingAgentIds.join(', ')
               const dynamicRouterPrompt = ROUTER_SYSTEM_PROMPT + `\n\n반드시 다음 목록에서만 팀을 선택하세요: ${teamList}`
               try {
@@ -271,14 +278,15 @@ export async function POST(req: Request) {
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
-          // ✅✅✅ 핵심: router_report를 refined_task 생성 전에 즉시 전송!
-          // 이 시점에서 팀 결정은 완료됨 → 즉시 프론트에 알림
+          // ✅ 총괄실장 보고 이벤트 전송
           send({
             type: 'router_report',
             teamId: agent.id,
             teamName: agent.name,
             refinedTask: refinedTask,
           })
+          // ✅ Vercel 버퍼 강제 flush → 프론트가 즉시 받음
+          flush()
 
           const useNotion  = hasToolForTeam('notion',          targetAgentId, mcpEnabled, mcpTeams)
           const useFigma   = hasToolForTeam('figma',           targetAgentId, mcpEnabled, mcpTeams)
@@ -371,6 +379,11 @@ export async function POST(req: Request) {
   })
 
   return new Response(readable, {
-    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',        // nginx 버퍼링 비활성화
+    },
   })
 }
