@@ -83,7 +83,8 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
         { object: 'block', type: 'divider', divider: {} },
       ]
       const res = await fetch('https://api.notion.com/v1/pages', {
-        method: 'POST', headers,
+        method: 'POST',
+        headers,
         body: JSON.stringify({
           parent: { type: 'page_id', page_id: '33a9d3b60d6180cfb5cae8c1362b89cc' },
           properties: { title: { title: [{ text: { content: input.title } }] } },
@@ -96,7 +97,8 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
     }
     if (toolName === 'notion_search') {
       const res = await fetch('https://api.notion.com/v1/search', {
-        method: 'POST', headers,
+        method: 'POST',
+        headers,
         body: JSON.stringify({ query: input.query, page_size: 5 }),
       })
       const data = await res.json()
@@ -111,10 +113,9 @@ async function callNotionAPI(toolName: string, input: Record<string, string>): P
     }
     if (toolName === 'notion_append_to_page') {
       const res = await fetch(`https://api.notion.com/v1/blocks/${input.page_id}/children`, {
-        method: 'PATCH', headers,
-        body: JSON.stringify({
-          children: [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.content } }] } }]
-        }),
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ children: [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: input.content } }] } }] }),
       })
       const data = await res.json()
       if (data.object === 'error') return JSON.stringify({ error: data.message })
@@ -133,84 +134,44 @@ const FIGMA_TOOLS: Anthropic.Tool[] = [
   {
     name: 'figma_get_file',
     description: 'Figma 파일의 디자인 정보를 가져옵니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        file_key: { type: 'string', description: 'Figma 파일 키' },
-      },
-      required: ['file_key'],
-    },
+    input_schema: { type: 'object', properties: { file_key: { type: 'string', description: 'Figma 파일 키' } }, required: ['file_key'] },
   },
   {
     name: 'figma_get_comments',
     description: 'Figma 파일의 댓글 목록을 가져옵니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        file_key: { type: 'string', description: 'Figma 파일 키' },
-      },
-      required: ['file_key'],
-    },
+    input_schema: { type: 'object', properties: { file_key: { type: 'string', description: 'Figma 파일 키' } }, required: ['file_key'] },
   },
   {
     name: 'figma_post_comment',
     description: 'Figma 파일에 댓글을 추가합니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        file_key: { type: 'string', description: 'Figma 파일 키' },
-        message:  { type: 'string', description: '댓글 내용' },
-      },
-      required: ['file_key', 'message'],
-    },
+    input_schema: { type: 'object', properties: { file_key: { type: 'string', description: 'Figma 파일 키' }, message: { type: 'string', description: '댓글 내용' } }, required: ['file_key', 'message'] },
   },
   {
     name: 'figma_list_files',
     description: '내 Figma 계정 정보를 확인합니다.',
-    input_schema: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
+    input_schema: { type: 'object', properties: {}, required: [] },
   },
 ]
 
 async function callFigmaAPI(toolName: string, input: Record<string, string>): Promise<string> {
   const token = process.env.FIGMA_ACCESS_TOKEN
   if (!token) return JSON.stringify({ error: 'FIGMA_ACCESS_TOKEN이 설정되지 않았어요' })
-  const headers: Record<string, string> = {
-    'X-Figma-Token': token,
-    'Content-Type': 'application/json',
-  }
+  const headers: Record<string, string> = { 'X-Figma-Token': token, 'Content-Type': 'application/json' }
   try {
     if (toolName === 'figma_get_file') {
       const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}`, { headers })
       const data = await res.json()
       if (data.err) return JSON.stringify({ error: data.err })
-      return JSON.stringify({
-        success: true,
-        name: data.name,
-        lastModified: data.lastModified,
-        pages: data.document?.children?.map((p: {id:string; name:string}) => ({ id: p.id, name: p.name })),
-        message: `✅ Figma 파일 "${data.name}" 정보를 가져왔어요!`
-      })
+      return JSON.stringify({ success: true, name: data.name, lastModified: data.lastModified, pages: data.document?.children?.map((p: {id:string; name:string}) => ({ id: p.id, name: p.name })), message: `✅ Figma 파일 "${data.name}" 정보를 가져왔어요!` })
     }
     if (toolName === 'figma_get_comments') {
       const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}/comments`, { headers })
       const data = await res.json()
       if (data.err) return JSON.stringify({ error: data.err })
-      return JSON.stringify({
-        success: true,
-        comments: data.comments?.slice(0, 10).map((c: {id:string; message:string; user:{handle:string}}) => ({
-          id: c.id, message: c.message, author: c.user?.handle
-        }))
-      })
+      return JSON.stringify({ success: true, comments: data.comments?.slice(0, 10).map((c: {id:string; message:string; user:{handle:string}}) => ({ id: c.id, message: c.message, author: c.user?.handle })) })
     }
     if (toolName === 'figma_post_comment') {
-      const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}/comments`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ message: input.message }),
-      })
+      const res = await fetch(`https://api.figma.com/v1/files/${input.file_key}/comments`, { method: 'POST', headers, body: JSON.stringify({ message: input.message }) })
       const data = await res.json()
       if (data.err) return JSON.stringify({ error: data.err })
       return JSON.stringify({ success: true, message: `✅ Figma에 댓글을 달았어요: "${input.message}"` })
@@ -230,60 +191,16 @@ async function callFigmaAPI(toolName: string, input: Record<string, string>): Pr
 //  GITHUB 도구
 // ══════════════════════════════════════════
 const GITHUB_TOOLS: Anthropic.Tool[] = [
-  {
-    name: 'github_list_repos',
-    description: '내 GitHub 저장소 목록을 가져옵니다.',
-    input_schema: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
-  {
-    name: 'github_list_issues',
-    description: 'GitHub 저장소의 이슈 목록을 가져옵니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        repo: { type: 'string', description: '저장소 이름 (예: ryeoeun-ai-studio)' },
-      },
-      required: ['repo'],
-    },
-  },
-  {
-    name: 'github_create_issue',
-    description: 'GitHub 저장소에 새 이슈를 생성합니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        repo:  { type: 'string', description: '저장소 이름' },
-        title: { type: 'string', description: '이슈 제목' },
-        body:  { type: 'string', description: '이슈 내용' },
-      },
-      required: ['repo', 'title', 'body'],
-    },
-  },
-  {
-    name: 'github_list_commits',
-    description: 'GitHub 저장소의 최근 커밋 목록을 가져옵니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        repo: { type: 'string', description: '저장소 이름' },
-      },
-      required: ['repo'],
-    },
-  },
+  { name: 'github_list_repos', description: '내 GitHub 저장소 목록을 가져옵니다.', input_schema: { type: 'object', properties: {}, required: [] } },
+  { name: 'github_list_issues', description: 'GitHub 저장소의 이슈 목록을 가져옵니다.', input_schema: { type: 'object', properties: { repo: { type: 'string', description: '저장소 이름' } }, required: ['repo'] } },
+  { name: 'github_create_issue', description: 'GitHub 저장소에 새 이슈를 생성합니다.', input_schema: { type: 'object', properties: { repo: { type: 'string', description: '저장소 이름' }, title: { type: 'string', description: '이슈 제목' }, body: { type: 'string', description: '이슈 내용' } }, required: ['repo', 'title', 'body'] } },
+  { name: 'github_list_commits', description: 'GitHub 저장소의 최근 커밋 목록을 가져옵니다.', input_schema: { type: 'object', properties: { repo: { type: 'string', description: '저장소 이름' } }, required: ['repo'] } },
 ]
 
 async function callGitHubAPI(toolName: string, input: Record<string, string>): Promise<string> {
   const token = process.env.GITHUB_TOKEN
   if (!token) return JSON.stringify({ error: 'GITHUB_TOKEN이 설정되지 않았어요' })
-  const headers: Record<string, string> = {
-    'Authorization': `token ${token}`,
-    'Accept': 'application/vnd.github.v3+json',
-    'Content-Type': 'application/json',
-  }
+  const headers: Record<string, string> = { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' }
   try {
     const meRes = await fetch('https://api.github.com/user', { headers })
     const me = await meRes.json()
@@ -291,51 +208,25 @@ async function callGitHubAPI(toolName: string, input: Record<string, string>): P
     if (toolName === 'github_list_repos') {
       const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=10', { headers })
       const data = await res.json()
-      return JSON.stringify({
-        success: true,
-        repos: data.map((r: {name:string; description:string; updated_at:string}) => ({
-          name: r.name, description: r.description, updated: r.updated_at
-        })),
-        message: `✅ GitHub 저장소 ${data.length}개를 가져왔어요!`
-      })
+      return JSON.stringify({ success: true, repos: data.map((r: {name:string; description:string; updated_at:string}) => ({ name: r.name, description: r.description, updated: r.updated_at })), message: `✅ GitHub 저장소 ${data.length}개를 가져왔어요!` })
     }
     if (toolName === 'github_list_issues') {
       const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/issues?state=open&per_page=10`, { headers })
       const data = await res.json()
       if (data.message) return JSON.stringify({ error: data.message })
-      return JSON.stringify({
-        success: true,
-        issues: data.map((i: {number:number; title:string; state:string; created_at:string}) => ({
-          number: i.number, title: i.title, state: i.state, created: i.created_at
-        })),
-        message: `✅ 이슈 ${data.length}개를 가져왔어요!`
-      })
+      return JSON.stringify({ success: true, issues: data.map((i: {number:number; title:string; state:string; created_at:string}) => ({ number: i.number, title: i.title, state: i.state, created: i.created_at })), message: `✅ 이슈 ${data.length}개를 가져왔어요!` })
     }
     if (toolName === 'github_create_issue') {
-      const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/issues`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ title: input.title, body: input.body }),
-      })
+      const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/issues`, { method: 'POST', headers, body: JSON.stringify({ title: input.title, body: input.body }) })
       const data = await res.json()
       if (data.message) return JSON.stringify({ error: data.message })
-      return JSON.stringify({
-        success: true,
-        issue_number: data.number,
-        url: data.html_url,
-        message: `✅ 이슈 #${data.number} "${input.title}"이 생성됐어요! 링크: ${data.html_url}`
-      })
+      return JSON.stringify({ success: true, issue_number: data.number, url: data.html_url, message: `✅ 이슈 #${data.number} "${input.title}"이 생성됐어요!` })
     }
     if (toolName === 'github_list_commits') {
       const res = await fetch(`https://api.github.com/repos/${owner}/${input.repo}/commits?per_page=10`, { headers })
       const data = await res.json()
       if (data.message) return JSON.stringify({ error: data.message })
-      return JSON.stringify({
-        success: true,
-        commits: data.map((c: {sha:string; commit:{message:string; author:{date:string}}}) => ({
-          sha: c.sha.slice(0,7), message: c.commit.message, date: c.commit.author.date
-        })),
-        message: `✅ 최근 커밋 ${data.length}개를 가져왔어요!`
-      })
+      return JSON.stringify({ success: true, commits: data.map((c: {sha:string; commit:{message:string; author:{date:string}}}) => ({ sha: c.sha.slice(0,7), message: c.commit.message, date: c.commit.author.date })), message: `✅ 최근 커밋 ${data.length}개를 가져왔어요!` })
     }
     return JSON.stringify({ error: '알 수 없는 도구' })
   } catch (err) {
@@ -347,126 +238,49 @@ async function callGitHubAPI(toolName: string, input: Record<string, string>): P
 //  GOOGLE DRIVE 도구
 // ══════════════════════════════════════════
 const GDRIVE_TOOLS: Anthropic.Tool[] = [
-  {
-    name: 'gdrive_list_files',
-    description: 'Google Drive의 파일 목록을 가져옵니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: '검색어 (선택사항)' },
-      },
-      required: [],
-    },
-  },
-  {
-    name: 'gdrive_create_file',
-    description: 'Google Drive에 새 텍스트 파일을 생성합니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        name:    { type: 'string', description: '파일 이름' },
-        content: { type: 'string', description: '파일 내용' },
-      },
-      required: ['name', 'content'],
-    },
-  },
-  {
-    name: 'gdrive_search_files',
-    description: 'Google Drive에서 파일을 검색합니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: '검색어' },
-      },
-      required: ['query'],
-    },
-  },
+  { name: 'gdrive_list_files', description: 'Google Drive의 파일 목록을 가져옵니다.', input_schema: { type: 'object', properties: { query: { type: 'string', description: '검색어 (선택사항)' } }, required: [] } },
+  { name: 'gdrive_create_file', description: 'Google Drive에 새 텍스트 파일을 생성합니다.', input_schema: { type: 'object', properties: { name: { type: 'string', description: '파일 이름' }, content: { type: 'string', description: '파일 내용' } }, required: ['name', 'content'] } },
+  { name: 'gdrive_search_files', description: 'Google Drive에서 파일을 검색합니다.', input_schema: { type: 'object', properties: { query: { type: 'string', description: '검색어' } }, required: ['query'] } },
 ]
 
 // ══════════════════════════════════════════
 //  GOOGLE CALENDAR 도구
 // ══════════════════════════════════════════
 const GCAL_TOOLS: Anthropic.Tool[] = [
-  {
-    name: 'gcal_list_events',
-    description: 'Google Calendar의 일정 목록을 가져옵니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        days: { type: 'string', description: '며칠치 일정을 가져올지 (기본값: 7)' },
-      },
-      required: [],
-    },
-  },
-  {
-    name: 'gcal_create_event',
-    description: 'Google Calendar에 새 일정을 추가합니다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        title:      { type: 'string', description: '일정 제목' },
-        start_time: { type: 'string', description: '시작 시간 (예: 2026-04-03T10:00:00)' },
-        end_time:   { type: 'string', description: '종료 시간 (예: 2026-04-03T11:00:00)' },
-        description:{ type: 'string', description: '일정 설명' },
-      },
-      required: ['title', 'start_time', 'end_time'],
-    },
-  },
+  { name: 'gcal_list_events', description: 'Google Calendar의 일정 목록을 가져옵니다.', input_schema: { type: 'object', properties: { days: { type: 'string', description: '며칠치 일정을 가져올지 (기본값: 7)' } }, required: [] } },
+  { name: 'gcal_create_event', description: 'Google Calendar에 새 일정을 추가합니다.', input_schema: { type: 'object', properties: { title: { type: 'string', description: '일정 제목' }, start_time: { type: 'string', description: '시작 시간 (예: 2026-04-03T10:00:00)' }, end_time: { type: 'string', description: '종료 시간' }, description: { type: 'string', description: '일정 설명' } }, required: ['title', 'start_time', 'end_time'] } },
 ]
 
-// ══════════════════════════════════════════
-//  Google OAuth Access Token 발급
-// ══════════════════════════════════════════
 async function getGoogleAccessToken(): Promise<string> {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id:     process.env.GOOGLE_CLIENT_ID!,
+      client_id: process.env.GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
       refresh_token: process.env.GOOGLE_REFRESH_TOKEN!,
-      grant_type:    'refresh_token',
+      grant_type: 'refresh_token',
     }),
   })
   const data = await res.json()
   return data.access_token
 }
 
-// ══════════════════════════════════════════
-//  Google Drive API 호출
-// ══════════════════════════════════════════
 async function callGDriveAPI(toolName: string, input: Record<string, string>): Promise<string> {
   try {
     const token = await getGoogleAccessToken()
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }
+    const headers: Record<string, string> = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
     if (toolName === 'gdrive_list_files' || toolName === 'gdrive_search_files') {
       const q = input.query ? `name contains '${input.query}'` : ''
       const url = `https://www.googleapis.com/drive/v3/files?pageSize=10&fields=files(id,name,mimeType,modifiedTime)${q ? `&q=${encodeURIComponent(q)}` : ''}`
       const res = await fetch(url, { headers })
       const data = await res.json()
-      return JSON.stringify({
-        success: true,
-        files: data.files?.map((f: {id:string; name:string; mimeType:string; modifiedTime:string}) => ({
-          id: f.id, name: f.name, type: f.mimeType, modified: f.modifiedTime
-        })),
-        message: `✅ Google Drive 파일 ${data.files?.length || 0}개를 가져왔어요!`
-      })
+      return JSON.stringify({ success: true, files: data.files?.map((f: {id:string; name:string; mimeType:string; modifiedTime:string}) => ({ id: f.id, name: f.name, type: f.mimeType, modified: f.modifiedTime })), message: `✅ Google Drive 파일 ${data.files?.length || 0}개를 가져왔어요!` })
     }
     if (toolName === 'gdrive_create_file') {
-      const meta = { name: input.name, mimeType: 'application/vnd.google-apps.document' }
-      const res = await fetch('https://www.googleapis.com/drive/v3/files', {
-        method: 'POST', headers,
-        body: JSON.stringify(meta),
-      })
+      const res = await fetch('https://www.googleapis.com/drive/v3/files', { method: 'POST', headers, body: JSON.stringify({ name: input.name, mimeType: 'application/vnd.google-apps.document' }) })
       const data = await res.json()
-      return JSON.stringify({
-        success: true,
-        file_id: data.id,
-        message: `✅ Google Drive에 "${input.name}" 파일을 생성했어요!`
-      })
+      return JSON.stringify({ success: true, file_id: data.id, message: `✅ Google Drive에 "${input.name}" 파일을 생성했어요!` })
     }
     return JSON.stringify({ error: '알 수 없는 도구' })
   } catch (err) {
@@ -474,16 +288,10 @@ async function callGDriveAPI(toolName: string, input: Record<string, string>): P
   }
 }
 
-// ══════════════════════════════════════════
-//  Google Calendar API 호출
-// ══════════════════════════════════════════
 async function callGCalAPI(toolName: string, input: Record<string, string>): Promise<string> {
   try {
     const token = await getGoogleAccessToken()
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }
+    const headers: Record<string, string> = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
     if (toolName === 'gcal_list_events') {
       const days = parseInt(input.days || '7')
       const now = new Date().toISOString()
@@ -491,33 +299,12 @@ async function callGCalAPI(toolName: string, input: Record<string, string>): Pro
       const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${now}&timeMax=${future}&singleEvents=true&orderBy=startTime&maxResults=10`
       const res = await fetch(url, { headers })
       const data = await res.json()
-      return JSON.stringify({
-        success: true,
-        events: data.items?.map((e: {summary:string; start:{dateTime?:string; date?:string}; end:{dateTime?:string; date?:string}}) => ({
-          title: e.summary,
-          start: e.start?.dateTime || e.start?.date,
-          end: e.end?.dateTime || e.end?.date,
-        })),
-        message: `✅ 앞으로 ${days}일간 일정 ${data.items?.length || 0}개를 가져왔어요!`
-      })
+      return JSON.stringify({ success: true, events: data.items?.map((e: {summary:string; start:{dateTime?:string; date?:string}; end:{dateTime?:string; date?:string}}) => ({ title: e.summary, start: e.start?.dateTime || e.start?.date, end: e.end?.dateTime || e.end?.date })), message: `✅ 앞으로 ${days}일간 일정 ${data.items?.length || 0}개를 가져왔어요!` })
     }
     if (toolName === 'gcal_create_event') {
-      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST', headers,
-        body: JSON.stringify({
-          summary: input.title,
-          description: input.description || '',
-          start: { dateTime: input.start_time, timeZone: 'Asia/Seoul' },
-          end:   { dateTime: input.end_time,   timeZone: 'Asia/Seoul' },
-        }),
-      })
+      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', { method: 'POST', headers, body: JSON.stringify({ summary: input.title, description: input.description || '', start: { dateTime: input.start_time, timeZone: 'Asia/Seoul' }, end: { dateTime: input.end_time, timeZone: 'Asia/Seoul' } }) })
       const data = await res.json()
-      return JSON.stringify({
-        success: true,
-        event_id: data.id,
-        link: data.htmlLink,
-        message: `✅ "${input.title}" 일정이 Google Calendar에 추가됐어요!`
-      })
+      return JSON.stringify({ success: true, event_id: data.id, link: data.htmlLink, message: `✅ "${input.title}" 일정이 Google Calendar에 추가됐어요!` })
     }
     return JSON.stringify({ error: '알 수 없는 도구' })
   } catch (err) {
@@ -556,8 +343,7 @@ export async function POST(req: Request) {
 
   const readable = new ReadableStream({
     async start(controller) {
-      const send = (obj: object) =>
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`))
+      const send = (obj: object) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`))
 
       try {
         let prevResult = ''
@@ -572,24 +358,32 @@ export async function POST(req: Request) {
 
           let targetAgentId: AgentId = step.agentId ?? 'content'
           let routerReason = ''
+          // ✅ v3 핵심: 총괄실장이 만든 구체적 업무 지시
+          let refinedTask = ''
 
           if (!step.agentId) {
             const teamList = workingAgentIds.join(', ')
             const dynamicRouterPrompt = ROUTER_SYSTEM_PROMPT +
-              `\n\n반드시 다음 목록에서만 팀을 선택하세요(router 제외): ${teamList}\n총괄실장(router)은 절대 선택하지 말고, 항상 다른 팀으로 라우팅하세요.`
+              `\n\n반드시 다음 목록에서만 팀을 선택하세요: ${teamList}`
+
             try {
               const routerRes = await anthropic.messages.create({
                 model: teamModels['router'] ?? 'claude-haiku-4-5-20251001',
-                max_tokens: 150,
+                max_tokens: 300,
                 system: dynamicRouterPrompt,
                 messages: [{ role: 'user', content: step.task }],
               })
+
               const raw = routerRes.content[0].type === 'text' ? routerRes.content[0].text : ''
               const parsed = JSON.parse(raw)
               const suggested = parsed.team as AgentId
               routerReason = parsed.reason ?? ''
+              // ✅ 총괄실장이 재정제한 업무 지시 추출
+              refinedTask = parsed.refined_task ?? ''
+
               targetAgentId = (suggested && suggested !== 'router' && workingAgentIds.includes(suggested))
-                ? suggested : (workingAgentIds[0] as AgentId ?? 'content')
+                ? suggested
+                : (workingAgentIds[0] as AgentId ?? 'content')
             } catch {
               targetAgentId = workingAgentIds[0] as AgentId ?? 'content'
             }
@@ -602,11 +396,12 @@ export async function POST(req: Request) {
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
-          const useNotion = hasToolForTeam('notion',         targetAgentId, mcpEnabled, mcpTeams)
-          const useFigma  = hasToolForTeam('figma',           targetAgentId, mcpEnabled, mcpTeams)
-          const useGitHub = hasToolForTeam('github',          targetAgentId, mcpEnabled, mcpTeams)
-          const useGDrive = hasToolForTeam('google-drive',    targetAgentId, mcpEnabled, mcpTeams)
-          const useGCal   = hasToolForTeam('google-calendar', targetAgentId, mcpEnabled, mcpTeams)
+          const useNotion   = hasToolForTeam('notion',           targetAgentId, mcpEnabled, mcpTeams)
+          const useFigma    = hasToolForTeam('figma',            targetAgentId, mcpEnabled, mcpTeams)
+          const useGitHub   = hasToolForTeam('github',           targetAgentId, mcpEnabled, mcpTeams)
+          const useGDrive   = hasToolForTeam('google-drive',     targetAgentId, mcpEnabled, mcpTeams)
+          const useGCal     = hasToolForTeam('google-calendar',  targetAgentId, mcpEnabled, mcpTeams)
+
           const tools = [
             ...(useNotion ? NOTION_TOOLS : []),
             ...(useFigma  ? FIGMA_TOOLS  : []),
@@ -614,40 +409,51 @@ export async function POST(req: Request) {
             ...(useGDrive ? GDRIVE_TOOLS : []),
             ...(useGCal   ? GCAL_TOOLS   : []),
           ]
+
           const mcpToolNames = [
-            ...(useNotion ? ['Notion'] : []),
-            ...(useFigma  ? ['Figma']  : []),
-            ...(useGitHub ? ['GitHub'] : []),
-            ...(useGDrive ? ['Google Drive'] : []),
-            ...(useGCal   ? ['Google Calendar'] : []),
+            ...(useNotion ? ['Notion']         : []),
+            ...(useFigma  ? ['Figma']          : []),
+            ...(useGitHub ? ['GitHub']         : []),
+            ...(useGDrive ? ['Google Drive']   : []),
+            ...(useGCal   ? ['Google Calendar']: []),
           ].join(', ')
 
           send({
-            type: 'agent', agentId: agent.id, agentName: agent.name,
-            modelName: model, reason: routerReason, step: i + 1,
+            type: 'agent',
+            agentId: agent.id,
+            agentName: agent.name,
+            modelName: model,
+            reason: routerReason,
+            step: i + 1,
             mcpTools: mcpToolNames || null,
           })
 
-          // ✅ 현재 KST 날짜/시간 주입
+          // ✅ KST 현재 날짜/시간 주입
           const now = new Date()
           const kstOffset = 9 * 60 * 60 * 1000
           const kst = new Date(now.getTime() + kstOffset)
           const currentDateTime = kst.toISOString().replace('T', ' ').slice(0, 19)
           const datePrefix = `[현재 날짜/시간 KST: ${currentDateTime}] 이 날짜를 기준으로 "이번주", "오늘", "내일", "다음주" 등을 정확히 계산하세요.\n\n`
-          const taskWithContext = datePrefix + injectContext(step, prevResult)
+
+          // ✅ v3 핵심: 총괄실장의 refined_task가 있으면 그걸 팀에 전달, 없으면 원본 사용
+          const baseTask = refinedTask
+            ? `[총괄실장 업무 지시]\n${refinedTask}\n\n[CEO 원본 요청 참고]\n${step.task}`
+            : step.task
+
+          const taskWithContext = datePrefix + injectContext({ ...step, task: baseTask }, prevResult)
 
           if (tools.length > 0) {
-            const messages: Anthropic.MessageParam[] = [
-              { role: 'user', content: taskWithContext }
-            ]
+            const messages: Anthropic.MessageParam[] = [{ role: 'user', content: taskWithContext }]
             let fullText = ''
             let continueLoop = true
 
             while (continueLoop) {
               const res = await anthropic.messages.create({
-                model, max_tokens: 4096,
+                model,
+                max_tokens: 4096,
                 system: agent.systemPrompt,
-                tools, messages,
+                tools,
+                messages,
               })
 
               for (const block of res.content) {
@@ -667,18 +473,21 @@ export async function POST(req: Request) {
                   const isGDrive = block.name.startsWith('gdrive_')
                   const isGCal   = block.name.startsWith('gcal_')
                   const label = isNotion ? 'Notion' : isFigma ? 'Figma' : isGitHub ? 'GitHub' : isGDrive ? 'Google Drive' : isGCal ? 'Google Calendar' : '도구'
+
                   send({ type: 'text', text: `\n🔧 ${label} ${block.name} 실행 중...\n`, step: i + 1 })
+
                   let result = ''
                   if (isNotion)      result = await callNotionAPI(block.name, block.input as Record<string, string>)
-                  else if (isFigma)  result = await callFigmaAPI(block.name, block.input as Record<string, string>)
+                  else if (isFigma)  result = await callFigmaAPI(block.name,  block.input as Record<string, string>)
                   else if (isGitHub) result = await callGitHubAPI(block.name, block.input as Record<string, string>)
                   else if (isGDrive) result = await callGDriveAPI(block.name, block.input as Record<string, string>)
-                  else if (isGCal)   result = await callGCalAPI(block.name, block.input as Record<string, string>)
+                  else if (isGCal)   result = await callGCalAPI(block.name,   block.input as Record<string, string>)
                   else result = JSON.stringify({ error: '알 수 없는 도구' })
-                  const parsed = JSON.parse(result)
-                  if (parsed.message) {
-                    send({ type: 'text', text: parsed.message + '\n', step: i + 1 })
-                    fullText += parsed.message + '\n'
+
+                  const parsedResult = JSON.parse(result)
+                  if (parsedResult.message) {
+                    send({ type: 'text', text: parsedResult.message + '\n', step: i + 1 })
+                    fullText += parsedResult.message + '\n'
                   }
                   toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result })
                 }
@@ -689,10 +498,10 @@ export async function POST(req: Request) {
               }
             }
             prevResult = fullText
-
           } else {
             const stream = await anthropic.messages.stream({
-              model, max_tokens: 4096,
+              model,
+              max_tokens: 4096,
               system: agent.systemPrompt,
               messages: [{ role: 'user', content: taskWithContext }],
             })
