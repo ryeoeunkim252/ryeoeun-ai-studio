@@ -3,13 +3,6 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { AGENTS, type AgentId } from '@/lib/agents'
 import { loadData } from '@/lib/store'
 
-interface RouterReport {
-  teamId: AgentId
-  teamName: string
-  reason: string
-  refinedTask: string
-}
-
 interface MessageBlock {
   step?: number
   agentId?: AgentId
@@ -22,12 +15,17 @@ interface MessageBlock {
 
 interface Message {
   id: string
-  role: 'user' | 'agent'
+  role: 'user' | 'agent' | 'router'   // ✅ router = 총괄실장 보고 전용
+  // user / agent 공통
   text?: string
-  blocks?: MessageBlock[]
-  routerReport?: RouterReport   // ✅ 총괄실장 보고
-  isPipeline?: boolean
   time: string
+  // agent 전용
+  blocks?: MessageBlock[]
+  isPipeline?: boolean
+  // router 전용
+  teamId?: AgentId
+  teamName?: string
+  refinedTask?: string
 }
 
 interface TeamChatProps {
@@ -36,7 +34,7 @@ interface TeamChatProps {
 
 const AGENT_ICONS: Record<string, string> = {
   router: '🎯', secretary: '✨', web: '💰', content: '✍️',
-  edu: '📊', research: '🔬', ops: '⚙️'
+  edu: '📊', research: '🔬', ops: '⚙️',
 }
 
 const EXAMPLES = [
@@ -78,24 +76,14 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
       router: true, web: true, content: true, edu: true, research: true, ops: true,
     })
 
+    // 유저 메시지 추가
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', text, time: now() }
+    setMessages(prev => [...prev, userMsg])
+
+    // ✅ 총괄실장 보고 메시지 ID (나중에 내용 채울 예정)
+    const routerMsgId = crypto.randomUUID()
+    // ✅ 팀 응답 메시지 ID
     const agentMsgId = crypto.randomUUID()
-    const agentMsg: Message = {
-      id: agentMsgId,
-      role: 'agent',
-      blocks: [{ content: '', streaming: true }],
-      isPipeline: text.includes('>>'),
-      time: now(),
-    }
-    setMessages(prev => [...prev, userMsg, agentMsg])
-
-    const updateBlocks = (updater: (b: MessageBlock[]) => MessageBlock[]) => {
-      setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, blocks: updater(m.blocks ?? []) } : m))
-    }
-
-    const setRouterReport = (report: RouterReport) => {
-      setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, routerReport: report } : m))
-    }
 
     try {
       const res = await fetch('/api/pipeline', {
@@ -108,6 +96,12 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
+      let routerInserted = false
+      let agentInserted = false
+
+      const updateBlocks = (updater: (b: MessageBlock[]) => MessageBlock[]) => {
+        setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, blocks: updater(m.blocks ?? []) } : m))
+      }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -123,33 +117,66 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
           try {
             const ev = JSON.parse(raw)
 
-            // ✅ 총괄실장 보고 이벤트 처리
+            // ✅ 총괄실장 보고 → 별도 메시지로 삽입
             if (ev.type === 'router_report') {
-              setRouterReport({
-                teamId: ev.teamId,
-                teamName: ev.teamName,
-                reason: ev.reason,
-                refinedTask: ev.refinedTask,
-              })
+              if (!routerInserted) {
+                routerInserted = true
+                setMessages(prev => [...prev, {
+                  id: routerMsgId,
+                  role: 'router',
+                  teamId: ev.teamId as AgentId,
+                  teamName: ev.teamName,
+                  refinedTask: ev.refinedTask,
+                  time: now(),
+                }])
+              }
             }
+
+            // ✅ 팀 응답 메시지 삽입 (agent 이벤트 처음 올 때)
+            else if (ev.type === 'agent') {
+              onActiveAgent(ev.agentId as AgentId)
+              if (!agentInserted) {
+                agentInserted = true
+                setMessages(prev => [...prev, {
+                  id: agentMsgId,
+                  role: 'agent',
+                  blocks: [{
+                    content: '',
+                    streaming: true,
+                    agentId: ev.agentId,
+                    agentName: ev.agentName,
+                    modelName: ev.modelName,
+                  }],
+                  isPipeline: text.includes('>>'),
+                  time: now(),
+                }])
+              } else {
+                updateBlocks(b => {
+                  const u = [...b]
+                  u[u.length - 1] = { ...u[u.length - 1], agentId: ev.agentId, agentName: ev.agentName, modelName: ev.modelName }
+                  return u
+                })
+              }
+            }
+
             else if (ev.type === 'pipeline_step' && ev.step > 1) {
               updateBlocks(b => [...b, { step: ev.step, content: '', streaming: true }])
             }
-            else if (ev.type === 'agent') {
-              onActiveAgent(ev.agentId as AgentId)
-              updateBlocks(b => { const u=[...b]; u[u.length-1]={...u[u.length-1], agentId: ev.agentId, agentName: ev.agentName, modelName: ev.modelName}; return u })
-            }
             else if (ev.type === 'text') {
-              updateBlocks(b => { const u=[...b]; u[u.length-1]={...u[u.length-1], content: u[u.length-1].content+ev.text}; return u })
+              updateBlocks(b => {
+                const u = [...b]
+                u[u.length - 1] = { ...u[u.length - 1], content: u[u.length - 1].content + ev.text }
+                return u
+              })
             }
             else if (ev.type === 'step_done') {
-              updateBlocks(b => { const u=[...b]; u[u.length-1]={...u[u.length-1], streaming: false}; return u })
+              updateBlocks(b => { const u = [...b]; u[u.length - 1] = { ...u[u.length - 1], streaming: false }; return u })
             }
             else if (ev.type === 'verify_start') {
               updateBlocks(b => [...b, { content: '', isVerify: true, streaming: true }])
             }
             else if (ev.type === 'verify_result') {
-              updateBlocks(b => { const u=[...b]; u[u.length-1]={...u[u.length-1], content: ev.text, streaming: false}; return u })
+              updateBlocks(b => { const u = [...b]; u[u.length - 1] = { ...u[u.length - 1], content: ev.text, streaming: false }; return u })
             }
             else if (ev.type === 'done') {
               updateBlocks(b => b.map(bl => ({ ...bl, streaming: false })))
@@ -159,7 +186,12 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
         }
       }
     } catch {
-      updateBlocks(() => [{ content: '⚠️ 오류가 발생했어요. 잠시 후 다시 시도해주세요.', agentName: '시스템' }])
+      setMessages(prev => [...prev, {
+        id: agentMsgId,
+        role: 'agent',
+        blocks: [{ content: '⚠️ 오류가 발생했어요. 잠시 후 다시 시도해주세요.', agentName: '시스템' }],
+        time: now(),
+      }])
       onActiveAgent(null)
     } finally {
       setLoading(false)
@@ -170,6 +202,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
 
   return (
     <div className="flex flex-col h-full" style={{ background: '#1a1030', borderLeft: '2px solid #3d2458', fontFamily: "'Jua', sans-serif" }}>
+
       {/* 헤더 */}
       <div className="px-4 py-3 flex-shrink-0" style={{ background: '#2a1845', borderBottom: '2px solid #3d2458' }}>
         <div className="text-[12px]" style={{ color: '#f0c4ff' }}>🎯 팀 커뮤니케이션</div>
@@ -196,8 +229,9 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
 
         {messages.map(msg => (
           <div key={msg.id} className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-bottom-1 duration-200">
+
             {/* 유저 메시지 */}
-            {msg.role === 'user' ? (
+            {msg.role === 'user' && (
               <div className="flex flex-col items-end gap-1">
                 <div className="text-[7px] flex items-center gap-1" style={{ color: '#7a5a9a' }}>
                   <span>{msg.time}</span><span>나</span>
@@ -207,49 +241,49 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                   {msg.text}
                 </div>
               </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {/* ✅ 총괄실장 보고 버블 */}
-                {msg.routerReport && (
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-1.5 text-[8px] px-1">
-                      <span className="text-sm">🎯</span>
-                      <span style={{ color: '#c06080', fontWeight: 600 }}>총괄실장</span>
-                      <span className="text-[7px] px-1.5 py-0.5 rounded-full"
-                        style={{ background: '#3d2458', color: '#e0b8ff', border: '1px solid #6d4a8a' }}>
-                        보고
-                      </span>
-                      <span className="ml-auto text-[7px]" style={{ color: '#5a4a7a' }}>{msg.time}</span>
-                    </div>
-                    <div className="text-[9px] px-3 py-2.5 rounded-2xl rounded-tl-sm leading-relaxed"
-                      style={{
-                        background: '#2a1535',
-                        color: '#e8b4d0',
-                        border: '1.5px solid #c0608044',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                      }}>
-                      <div className="flex items-center gap-1 mb-1.5">
-                        <span style={{ color: '#c06080' }}>▶</span>
-                        <span style={{ color: '#f0c4e0', fontWeight: 600 }}>
-                          {AGENT_ICONS[msg.routerReport.teamId] ?? '👥'} {msg.routerReport.teamName}에 업무 지시했어요
-                        </span>
-                      </div>
-                      <div style={{ color: '#b890a8', fontSize: '8px', lineHeight: '1.5' }}>
-                        {msg.routerReport.refinedTask}
-                      </div>
-                    </div>
-                  </div>
-                )}
+            )}
 
-                {/* 파이프라인 표시 */}
+            {/* ✅ 총괄실장 보고 메시지 (완전 독립 버블) */}
+            {msg.role === 'router' && (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-[8px] px-1">
+                  <span className="text-sm">🎯</span>
+                  <span style={{ color: '#c06080', fontWeight: 600 }}>총괄실장</span>
+                  <span className="text-[7px] px-1.5 py-0.5 rounded-full"
+                    style={{ background: '#3d1535', color: '#f0a0c0', border: '1px solid #c0608044' }}>
+                    업무 지시
+                  </span>
+                  <span className="ml-auto text-[7px]" style={{ color: '#5a4a7a' }}>{msg.time}</span>
+                </div>
+                <div className="text-[9px] px-3 py-2.5 rounded-2xl rounded-tl-sm leading-relaxed"
+                  style={{
+                    background: '#2a1535',
+                    color: '#e8b4d0',
+                    border: '1.5px solid #c0608055',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span style={{ color: '#ff8ab0' }}>▶</span>
+                    <span style={{ color: '#ffc0d8', fontWeight: 600, fontSize: '10px' }}>
+                      {AGENT_ICONS[msg.teamId ?? ''] ?? '👥'} {msg.teamName}에 업무 지시했어요
+                    </span>
+                  </div>
+                  <div style={{ color: '#c090a8', lineHeight: '1.6' }}>
+                    {msg.refinedTask}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 팀 응답 메시지 */}
+            {msg.role === 'agent' && (
+              <div className="flex flex-col gap-2">
                 {msg.isPipeline && msg.blocks && msg.blocks.length > 1 && (
                   <div className="text-[8px] px-2" style={{ color: '#c9a0dc' }}>
                     🔗 파이프라인 {msg.blocks.filter(b => !b.isVerify).length}단계 실행 중
                   </div>
                 )}
-
-                {/* 팀 응답 블록 */}
                 {msg.blocks?.map((block, bi) => (
                   <div key={bi} className="flex flex-col gap-1">
                     <div className="flex items-center gap-1.5 text-[8px] px-1">
@@ -258,7 +292,9 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                       ) : (
                         <>
                           <span className="text-sm">{block.agentId ? (AGENT_ICONS[block.agentId] ?? '⏳') : '⏳'}</span>
-                          <span style={{ color: agentColor(block.agentId) }}>{block.agentName ?? '작업 중...'}</span>
+                          <span style={{ color: agentColor(block.agentId) }}>
+                            {block.agentName ?? '작업 중...'}
+                          </span>
                           {block.modelName && (
                             <span className="text-[7px] px-1.5 py-0.5 rounded-full"
                               style={{ background: '#3d2458', color: '#e0b8ff', border: '1px solid #6d4a8a' }}>
@@ -273,9 +309,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                           )}
                         </>
                       )}
-                      {bi === 0 && !msg.routerReport && (
-                        <span className="ml-auto" style={{ color: '#5a4a7a' }}>{msg.time}</span>
-                      )}
+                      {bi === 0 && <span className="ml-auto text-[7px]" style={{ color: '#5a4a7a' }}>{msg.time}</span>}
                     </div>
                     <div className="text-[10px] px-3 py-2.5 rounded-2xl rounded-tl-sm leading-relaxed"
                       style={{
@@ -287,9 +321,9 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                       }}>
                       {block.content || (block.streaming && (
                         <span className="inline-flex gap-1 items-center">
-                          {[0,1,2].map(i => (
+                          {[0, 1, 2].map(i => (
                             <span key={i} className="w-1.5 h-1.5 rounded-full animate-bounce"
-                              style={{ background: '#c9a0dc', animationDelay: `${i*0.15}s`, animationDuration: '1s' }} />
+                              style={{ background: '#c9a0dc', animationDelay: `${i * 0.15}s`, animationDuration: '1s' }} />
                           ))}
                         </span>
                       ))}
@@ -298,6 +332,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                 ))}
               </div>
             )}
+
           </div>
         ))}
       </div>
@@ -348,6 +383,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
           ↑
         </button>
       </div>
+
     </div>
   )
 }
