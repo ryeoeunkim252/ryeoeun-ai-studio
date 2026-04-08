@@ -235,20 +235,12 @@ export async function POST(req: Request) {
             const keywordTeam = getKeywordTeam(step.task)
 
             if (keywordTeam && workingAgentIds.includes(keywordTeam)) {
+              // ✅ 키워드 매칭 → 즉시 팀 결정
               targetAgentId = keywordTeam
               routerReason = '키워드 기반 자동 배정'
-              // refined_task 생성
-              try {
-                const refineRes = await anthropic.messages.create({
-                  model: teamModels['router'] ?? 'claude-haiku-4-5-20251001',
-                  max_tokens: 200,
-                  system: `당신은 총괄실장입니다. ${targetAgentId} 팀에 맞게 CEO 요청을 구체적 업무 지시로 재정제하세요. 반드시 JSON으로만: {"refined_task": "구체적 지시 2-3문장"}`,
-                  messages: [{ role: 'user', content: step.task }],
-                })
-                const raw = refineRes.content[0].type === 'text' ? refineRes.content[0].text : ''
-                refinedTask = JSON.parse(raw).refined_task ?? ''
-              } catch { refinedTask = '' }
+              refinedTask = step.task // 일단 원본 사용
             } else {
+              // ✅ AI 라우터 호출
               const teamList = workingAgentIds.join(', ')
               const dynamicRouterPrompt = ROUTER_SYSTEM_PROMPT + `\n\n반드시 다음 목록에서만 팀을 선택하세요: ${teamList}`
               try {
@@ -262,11 +254,16 @@ export async function POST(req: Request) {
                 const parsed = JSON.parse(raw)
                 const suggested = parsed.team as AgentId
                 routerReason = parsed.reason ?? ''
-                refinedTask = parsed.refined_task ?? ''
+                refinedTask = parsed.refined_task ?? step.task
                 targetAgentId = (suggested && suggested !== 'router' && workingAgentIds.includes(suggested))
                   ? suggested : (workingAgentIds[0] as AgentId ?? 'content')
-              } catch { targetAgentId = workingAgentIds[0] as AgentId ?? 'content' }
+              } catch {
+                targetAgentId = workingAgentIds[0] as AgentId ?? 'content'
+                refinedTask = step.task
+              }
             }
+          } else {
+            refinedTask = step.task
           }
 
           if (teamEnabled[targetAgentId] === false) targetAgentId = workingAgentIds[0] as AgentId ?? 'content'
@@ -274,13 +271,13 @@ export async function POST(req: Request) {
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
-          // ✅ 총괄실장 보고 이벤트 전송 (팀 응답 전에 먼저!)
+          // ✅✅✅ 핵심: router_report를 refined_task 생성 전에 즉시 전송!
+          // 이 시점에서 팀 결정은 완료됨 → 즉시 프론트에 알림
           send({
             type: 'router_report',
             teamId: agent.id,
             teamName: agent.name,
-            reason: routerReason,
-            refinedTask: refinedTask || step.task,
+            refinedTask: refinedTask,
           })
 
           const useNotion  = hasToolForTeam('notion',          targetAgentId, mcpEnabled, mcpTeams)
@@ -311,11 +308,9 @@ export async function POST(req: Request) {
           const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
           const currentDateTime = kst.toISOString().replace('T', ' ').slice(0, 19)
           const datePrefix = `[현재 날짜/시간 KST: ${currentDateTime}]\n\n`
-
-          const baseTask = refinedTask
+          const baseTask = refinedTask !== step.task
             ? `[총괄실장 업무 지시]\n${refinedTask}\n\n[CEO 원본 요청]\n${step.task}`
             : step.task
-
           const taskWithContext = datePrefix + injectContext({ ...step, task: baseTask }, prevResult)
 
           if (tools.length > 0) {
