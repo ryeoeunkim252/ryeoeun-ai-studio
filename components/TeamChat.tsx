@@ -15,14 +15,11 @@ interface MessageBlock {
 
 interface Message {
   id: string
-  role: 'user' | 'agent' | 'router'   // ✅ router = 총괄실장 보고 전용
-  // user / agent 공통
+  role: 'user' | 'agent' | 'router'
   text?: string
   time: string
-  // agent 전용
   blocks?: MessageBlock[]
   isPipeline?: boolean
-  // router 전용
   teamId?: AgentId
   teamName?: string
   refinedTask?: string
@@ -76,14 +73,22 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
       router: true, web: true, content: true, edu: true, research: true, ops: true,
     })
 
-    // 유저 메시지 추가
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', text, time: now() }
     setMessages(prev => [...prev, userMsg])
 
-    // ✅ 총괄실장 보고 메시지 ID (나중에 내용 채울 예정)
     const routerMsgId = crypto.randomUUID()
-    // ✅ 팀 응답 메시지 ID
-    const agentMsgId = crypto.randomUUID()
+    const agentMsgId  = crypto.randomUUID()
+
+    // ✅ router_report에서 받은 데이터 임시 저장
+    let pendingRouterReport: { teamId: AgentId; teamName: string; refinedTask: string } | null = null
+    let agentInserted = false
+
+    const updateBlocks = (updater: (b: MessageBlock[]) => MessageBlock[]) => {
+      setMessages(prev => prev.map(m => m.id === agentMsgId
+        ? { ...m, blocks: updater(m.blocks ?? []) }
+        : m
+      ))
+    }
 
     try {
       const res = await fetch('/api/pipeline', {
@@ -96,12 +101,6 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
-      let routerInserted = false
-      let agentInserted = false
-
-      const updateBlocks = (updater: (b: MessageBlock[]) => MessageBlock[]) => {
-        setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, blocks: updater(m.blocks ?? []) } : m))
-      }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -117,39 +116,49 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
           try {
             const ev = JSON.parse(raw)
 
-            // ✅ 총괄실장 보고 → 별도 메시지로 삽입
+            // ✅ router_report → 임시 저장 (아직 메시지 추가 안 함)
             if (ev.type === 'router_report') {
-              if (!routerInserted) {
-                routerInserted = true
-                setMessages(prev => [...prev, {
-                  id: routerMsgId,
-                  role: 'router',
-                  teamId: ev.teamId as AgentId,
-                  teamName: ev.teamName,
-                  refinedTask: ev.refinedTask,
-                  time: now(),
-                }])
+              pendingRouterReport = {
+                teamId: ev.teamId as AgentId,
+                teamName: ev.teamName,
+                refinedTask: ev.refinedTask,
               }
             }
 
-            // ✅ 팀 응답 메시지 삽입 (agent 이벤트 처음 올 때)
+            // ✅ agent → 라우터 메시지 + 에이전트 메시지를 단 하나의 setMessages로 동시 추가!
             else if (ev.type === 'agent') {
               onActiveAgent(ev.agentId as AgentId)
               if (!agentInserted) {
                 agentInserted = true
-                setMessages(prev => [...prev, {
-                  id: agentMsgId,
-                  role: 'agent',
-                  blocks: [{
-                    content: '',
-                    streaming: true,
-                    agentId: ev.agentId,
-                    agentName: ev.agentName,
-                    modelName: ev.modelName,
-                  }],
-                  isPipeline: text.includes('>>'),
-                  time: now(),
-                }])
+                const routerData = pendingRouterReport ?? {
+                  teamId: ev.agentId as AgentId,
+                  teamName: ev.agentName,
+                  refinedTask: text,
+                }
+                // ✅ 핵심: 두 메시지를 하나의 setState로 동시 삽입 → 순서 보장
+                setMessages(prev => [...prev,
+                  {
+                    id: routerMsgId,
+                    role: 'router' as const,
+                    teamId: routerData.teamId,
+                    teamName: routerData.teamName,
+                    refinedTask: routerData.refinedTask,
+                    time: now(),
+                  },
+                  {
+                    id: agentMsgId,
+                    role: 'agent' as const,
+                    blocks: [{
+                      content: '',
+                      streaming: true,
+                      agentId: ev.agentId as AgentId,
+                      agentName: ev.agentName,
+                      modelName: ev.modelName,
+                    }],
+                    isPipeline: text.includes('>>'),
+                    time: now(),
+                  },
+                ])
               } else {
                 updateBlocks(b => {
                   const u = [...b]
@@ -243,7 +252,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
               </div>
             )}
 
-            {/* ✅ 총괄실장 보고 메시지 (완전 독립 버블) */}
+            {/* 총괄실장 보고 버블 */}
             {msg.role === 'router' && (
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 text-[8px] px-1">
@@ -292,9 +301,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                       ) : (
                         <>
                           <span className="text-sm">{block.agentId ? (AGENT_ICONS[block.agentId] ?? '⏳') : '⏳'}</span>
-                          <span style={{ color: agentColor(block.agentId) }}>
-                            {block.agentName ?? '작업 중...'}
-                          </span>
+                          <span style={{ color: agentColor(block.agentId) }}>{block.agentName ?? '작업 중...'}</span>
                           {block.modelName && (
                             <span className="text-[7px] px-1.5 py-0.5 rounded-full"
                               style={{ background: '#3d2458', color: '#e0b8ff', border: '1px solid #6d4a8a' }}>
