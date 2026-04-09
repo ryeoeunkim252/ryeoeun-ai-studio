@@ -78,15 +78,17 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
 
     const routerMsgId = crypto.randomUUID()
     const agentMsgId  = crypto.randomUUID()
-
-    // ✅ router_report에서 받은 데이터 임시 저장
-    let pendingRouterReport: { teamId: AgentId; teamName: string; refinedTask: string } | null = null
     let agentInserted = false
 
     const updateBlocks = (updater: (b: MessageBlock[]) => MessageBlock[]) => {
-      setMessages(prev => prev.map(m => m.id === agentMsgId
-        ? { ...m, blocks: updater(m.blocks ?? []) }
-        : m
+      setMessages(prev => prev.map(m =>
+        m.id === agentMsgId ? { ...m, blocks: updater(m.blocks ?? []) } : m
+      ))
+    }
+
+    const updateRouterTask = (refinedTask: string) => {
+      setMessages(prev => prev.map(m =>
+        m.id === routerMsgId ? { ...m, refinedTask } : m
       ))
     }
 
@@ -116,35 +118,31 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
           try {
             const ev = JSON.parse(raw)
 
-            // ✅ router_report → 임시 저장 (아직 메시지 추가 안 함)
+            // ✅ router_report → refinedTask만 업데이트 (버블은 agent 이벤트에서 이미 생성됨)
             if (ev.type === 'router_report') {
-              pendingRouterReport = {
-                teamId: ev.teamId as AgentId,
-                teamName: ev.teamName,
-                refinedTask: ev.refinedTask,
+              if (ev.refinedTask && ev.refinedTask !== text) {
+                updateRouterTask(ev.refinedTask)
               }
             }
 
-            // ✅ agent → 라우터 메시지 + 에이전트 메시지를 단 하나의 setMessages로 동시 추가!
+            // ✅ agent 이벤트 → 총괄실장 버블 + 팀 응답 버블을 단일 setState로 동시 생성
             else if (ev.type === 'agent') {
               onActiveAgent(ev.agentId as AgentId)
               if (!agentInserted) {
                 agentInserted = true
-                const routerData = pendingRouterReport ?? {
-                  teamId: ev.agentId as AgentId,
-                  teamName: ev.agentName,
-                  refinedTask: text,
-                }
-                // ✅ 핵심: 두 메시지를 하나의 setState로 동시 삽입 → 순서 보장
-                setMessages(prev => [...prev,
+                const t = now()
+                setMessages(prev => [
+                  ...prev,
+                  // 총괄실장 버블 (agent 이벤트 데이터로 즉시 생성)
                   {
                     id: routerMsgId,
                     role: 'router' as const,
-                    teamId: routerData.teamId,
-                    teamName: routerData.teamName,
-                    refinedTask: routerData.refinedTask,
-                    time: now(),
+                    teamId: ev.agentId as AgentId,
+                    teamName: ev.agentName,
+                    refinedTask: text, // 일단 원본, router_report 오면 업데이트됨
+                    time: t,
                   },
+                  // 팀 응답 버블
                   {
                     id: agentMsgId,
                     role: 'agent' as const,
@@ -156,15 +154,9 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                       modelName: ev.modelName,
                     }],
                     isPipeline: text.includes('>>'),
-                    time: now(),
+                    time: t,
                   },
                 ])
-              } else {
-                updateBlocks(b => {
-                  const u = [...b]
-                  u[u.length - 1] = { ...u[u.length - 1], agentId: ev.agentId, agentName: ev.agentName, modelName: ev.modelName }
-                  return u
-                })
               }
             }
 
@@ -196,8 +188,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
       }
     } catch {
       setMessages(prev => [...prev, {
-        id: agentMsgId,
-        role: 'agent',
+        id: agentMsgId, role: 'agent',
         blocks: [{ content: '⚠️ 오류가 발생했어요. 잠시 후 다시 시도해주세요.', agentName: '시스템' }],
         time: now(),
       }])
@@ -252,7 +243,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
               </div>
             )}
 
-            {/* 총괄실장 보고 버블 */}
+            {/* ✅ 총괄실장 보고 버블 */}
             {msg.role === 'router' && (
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 text-[8px] px-1">
@@ -266,19 +257,17 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                 </div>
                 <div className="text-[9px] px-3 py-2.5 rounded-2xl rounded-tl-sm leading-relaxed"
                   style={{
-                    background: '#2a1535',
-                    color: '#e8b4d0',
+                    background: '#2a1535', color: '#e8b4d0',
                     border: '1.5px solid #c0608055',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                   }}>
-                  <div className="flex items-center gap-1.5 mb-2">
+                  <div className="flex items-center gap-1.5 mb-1.5">
                     <span style={{ color: '#ff8ab0' }}>▶</span>
                     <span style={{ color: '#ffc0d8', fontWeight: 600, fontSize: '10px' }}>
                       {AGENT_ICONS[msg.teamId ?? ''] ?? '👥'} {msg.teamName}에 업무 지시했어요
                     </span>
                   </div>
-                  <div style={{ color: '#c090a8', lineHeight: '1.6' }}>
+                  <div style={{ color: '#c090a8', lineHeight: '1.6', fontSize: '8px' }}>
                     {msg.refinedTask}
                   </div>
                 </div>
@@ -305,7 +294,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                           {block.modelName && (
                             <span className="text-[7px] px-1.5 py-0.5 rounded-full"
                               style={{ background: '#3d2458', color: '#e0b8ff', border: '1px solid #6d4a8a' }}>
-                              {block.modelName.replace('claude-','').replace('-4-5','').replace('-20251001','').replace('-5','').toUpperCase()}
+                              {block.modelName.replace('claude-','').replace('-4-5','').replace('-20251001','').toUpperCase()}
                             </span>
                           )}
                           {block.step && msg.isPipeline && (
@@ -323,8 +312,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                         background: block.isVerify ? '#1a3a1a' : '#2a1845',
                         color: block.isVerify ? '#a0e0a0' : '#d4b4f4',
                         border: `1.5px solid ${block.isVerify ? '#2a6a2a' : agentColor(block.agentId) + '44'}`,
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                       }}>
                       {block.content || (block.streaming && (
                         <span className="inline-flex gap-1 items-center">
