@@ -216,16 +216,7 @@ export async function POST(req: Request) {
 
   const readable = new ReadableStream({
     async start(controller) {
-      // ✅ send: SSE 이벤트 전송
       const send = (obj: object) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`))
-
-      // ✅ flush: Vercel SSE 버퍼 강제 즉시 전송
-      // Vercel edge runtime은 데이터를 버퍼에 쌓았다가 한꺼번에 보내는데,
-      // 1KB 이상의 패딩 데이터를 추가하면 즉시 전송됨
-      const flush = () => {
-        const padding = ' '.repeat(1024)
-        controller.enqueue(encoder.encode(`: ${padding}\n\n`))
-      }
 
       try {
         let prevResult = ''
@@ -242,10 +233,9 @@ export async function POST(req: Request) {
 
           if (!step.agentId) {
             const keywordTeam = getKeywordTeam(step.task)
-
             if (keywordTeam && workingAgentIds.includes(keywordTeam)) {
               targetAgentId = keywordTeam
-              routerReason = '키워드 기반 자동 배정'
+              routerReason = '키워드 자동 배정'
               refinedTask = step.task
             } else {
               const teamList = workingAgentIds.join(', ')
@@ -278,15 +268,12 @@ export async function POST(req: Request) {
           const agent = AGENTS.find(a => a.id === targetAgentId) ?? AGENTS[1]
           const model = step.model ?? teamModels[targetAgentId] ?? agent.model
 
-          // ✅ 총괄실장 보고 이벤트 전송
-          send({
-            type: 'router_report',
-            teamId: agent.id,
-            teamName: agent.name,
-            refinedTask: refinedTask,
-          })
-          // ✅ Vercel 버퍼 강제 flush → 프론트가 즉시 받음
-          flush()
+          // agent 이벤트 전송
+          send({ type: 'agent', agentId: agent.id, agentName: agent.name, modelName: model, reason: routerReason, step: i + 1 })
+
+          // ✅ 핵심: 총괄실장 배정 정보를 첫 번째 text 이벤트로 즉시 전송
+          // 이 방식은 SSE 타이밍, React 배치, Vercel 캐시 문제 전부 없음
+          send({ type: 'text', text: `🎯 총괄실장 → ${agent.name} 배정 (${routerReason || '키워드 자동배정'})\n${'─'.repeat(20)}\n\n`, step: i + 1 })
 
           const useNotion  = hasToolForTeam('notion',          targetAgentId, mcpEnabled, mcpTeams)
           const useFigma   = hasToolForTeam('figma',           targetAgentId, mcpEnabled, mcpTeams)
@@ -302,18 +289,7 @@ export async function POST(req: Request) {
             ...(useGCal   ? GCAL_TOOLS   : []),
           ]
 
-          const mcpToolNames = [
-            ...(useNotion ? ['Notion'] : []),
-            ...(useFigma  ? ['Figma']  : []),
-            ...(useGitHub ? ['GitHub'] : []),
-            ...(useGDrive ? ['Google Drive']   : []),
-            ...(useGCal   ? ['Google Calendar']: []),
-          ].join(', ')
-
-          send({ type: 'agent', agentId: agent.id, agentName: agent.name, modelName: model, reason: routerReason, step: i + 1, mcpTools: mcpToolNames || null })
-
-          const now = new Date()
-          const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+          const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
           const currentDateTime = kst.toISOString().replace('T', ' ').slice(0, 19)
           const datePrefix = `[현재 날짜/시간 KST: ${currentDateTime}]\n\n`
           const baseTask = refinedTask !== step.task
@@ -379,11 +355,6 @@ export async function POST(req: Request) {
   })
 
   return new Response(readable, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',        // nginx 버퍼링 비활성화
-    },
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' },
   })
 }
