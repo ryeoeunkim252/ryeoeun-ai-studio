@@ -46,13 +46,20 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const msgsRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)  // ✅ 맨 아래 anchor
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // ✅ 핵심 수정: smooth 스크롤 대신 즉시 이동 + setTimeout으로 DOM 업데이트 후 실행
   const scrollToBottom = useCallback(() => {
-    msgsRef.current?.scrollTo({ top: msgsRef.current.scrollHeight, behavior: 'smooth' })
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ block: 'end' })
+    }, 0)
   }, [])
 
-  useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
+  // ✅ messages 변경될 때마다 스크롤 (스트리밍 중 매 청크마다 실행됨)
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, scrollToBottom])
 
   const now = () => {
     const d = new Date()
@@ -118,14 +125,11 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
           try {
             const ev = JSON.parse(raw)
 
-            // ✅ router_report → refinedTask만 업데이트 (버블은 agent 이벤트에서 이미 생성됨)
             if (ev.type === 'router_report') {
               if (ev.refinedTask && ev.refinedTask !== text) {
                 updateRouterTask(ev.refinedTask)
               }
             }
-
-            // ✅ agent 이벤트 → 총괄실장 버블 + 팀 응답 버블을 단일 setState로 동시 생성
             else if (ev.type === 'agent') {
               onActiveAgent(ev.agentId as AgentId)
               if (!agentInserted) {
@@ -133,16 +137,14 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                 const t = now()
                 setMessages(prev => [
                   ...prev,
-                  // 총괄실장 버블 (agent 이벤트 데이터로 즉시 생성)
                   {
                     id: routerMsgId,
                     role: 'router' as const,
                     teamId: ev.agentId as AgentId,
                     teamName: ev.agentName,
-                    refinedTask: text, // 일단 원본, router_report 오면 업데이트됨
+                    refinedTask: text,
                     time: t,
                   },
-                  // 팀 응답 버블
                   {
                     id: agentMsgId,
                     role: 'agent' as const,
@@ -159,7 +161,6 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
                 ])
               }
             }
-
             else if (ev.type === 'pipeline_step' && ev.step > 1) {
               updateBlocks(b => [...b, { step: ev.step, content: '', streaming: true }])
             }
@@ -243,7 +244,7 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
               </div>
             )}
 
-            {/* ✅ 총괄실장 보고 버블 */}
+            {/* 총괄실장 보고 버블 */}
             {msg.role === 'router' && (
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 text-[8px] px-1">
@@ -330,6 +331,9 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
 
           </div>
         ))}
+
+        {/* ✅ 맨 아래 anchor - 여기로 스크롤됨 */}
+        <div ref={bottomRef} />
       </div>
 
       {/* 빠른 태그 */}
