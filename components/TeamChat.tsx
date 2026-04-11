@@ -46,17 +46,17 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const msgsRef = useRef<HTMLDivElement>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)  // ✅ 맨 아래 anchor
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // ✅ 핵심 수정: smooth 스크롤 대신 즉시 이동 + setTimeout으로 DOM 업데이트 후 실행
+  // ✅ 핵심 수정: 컨테이너 scrollTop을 직접 scrollHeight로 설정
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ block: 'end' })
+      if (msgsRef.current) {
+        msgsRef.current.scrollTop = msgsRef.current.scrollHeight
+      }
     }, 0)
   }, [])
 
-  // ✅ messages 변경될 때마다 스크롤 (스트리밍 중 매 청크마다 실행됨)
   useEffect(() => {
     scrollToBottom()
   }, [messages, scrollToBottom])
@@ -331,9 +331,6 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
 
           </div>
         ))}
-
-        {/* ✅ 맨 아래 anchor - 여기로 스크롤됨 */}
-        <div ref={bottomRef} />
       </div>
 
       {/* 빠른 태그 */}
