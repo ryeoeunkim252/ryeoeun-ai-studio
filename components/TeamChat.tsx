@@ -48,12 +48,11 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
   const msgsRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // ✅ 핵심 수정: 컨테이너 scrollTop을 직접 scrollHeight로 설정
+  // ✅ getElementById로 정확한 컨테이너 직접 제어
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
-      if (msgsRef.current) {
-        msgsRef.current.scrollTop = msgsRef.current.scrollHeight
-      }
+      const el = document.getElementById('chat-messages')
+      if (el) el.scrollTop = el.scrollHeight
     }, 0)
   }, [])
 
@@ -210,8 +209,12 @@ export default function TeamChat({ onActiveAgent }: TeamChatProps) {
         <div className="text-[8px] mt-0.5" style={{ color: '#7a5a9a' }}>업무를 지시하고 결과를 확인해요</div>
       </div>
 
-      {/* 메시지 목록 */}
-      <div ref={msgsRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 min-h-0">
+      {/* ✅ id="chat-messages" 추가 - 스크롤 타겟 */}
+      <div
+        id="chat-messages"
+        ref={msgsRef}
+        className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 min-h-0"
+      >
         {messages.length === 0 && (
           <div className="m-auto text-center">
             <div className="text-3xl mb-3">🐰</div>
